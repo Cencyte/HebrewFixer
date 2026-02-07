@@ -1,0 +1,19 @@
+# Development documentation (internal notes, manuscripts)
+.rovodev/
+
+# Temporary working files
+Tmp/
+*.tmp
+*.log
+tmp_*
+
+# Third-party tools (not part of this project)
+rtl-fixer-win-3.1_1/
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# AutoHotkey temp files
+*.ah2~

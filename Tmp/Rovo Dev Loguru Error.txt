@@ -1,0 +1,1479 @@
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=263568), 'exception': None,
+'extra': {}, 'file': (name='tool.py', path='rovodev\\modules\\analytics\\mappers\\tool.py'),
+'function': 'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 38, 'message': 'Processing
+tool event with attributes: {\'gen_ai.tool.name\': \'find_and_replace_code\', \'gen_ai.tool.call.id\':
+\'toolu_bdrk_011KTAMBWDu5EQKszygDuzWC\', \'tool_arguments\': \'{"file_path":
+"C:\\\\\\\\Users\\\\\\\\FireSongz\\\\\\\\Desktop\\\\\\\\HebrewFixer_BiDiPaste.ahk", "find":
+"UpdateTray() {\\\\n    global g_Enabled, g_AutoEnable\\\\n    \\\\n    ; Update checkmark for
+auto-enable menu item\\\\n    if g_AutoEnable\\\\n        A_TrayMenu.Check(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    else\\\\n        A_TrayMenu.Uncheck(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    \\\\n    ; Update icon and tooltip\\\\n    A_IconTip := \\\\"HebrewFixer: \\\\"
+. (g_Enabled ? \\\\"ON\\\\" : \\\\"OFF\\\\") . (g_AutoEnable ? \\\\" [Auto]\\\\" : \\\\"\\\\")\\\\n
+try {\\\\n        if g_Enabled\\\\n            TraySetIcon(\\\\"shell32.dll\\\\", 44)\\\\n
+else\\\\n            TraySetIcon(\\\\"shell32.dll\\\\", 1)\\\\n    }\\\\n}", "replace": "UpdateTray()
+{\\\\n    global g_Enabled, g_AutoEnable\\\\n    \\\\n    ; Update checkmark for auto-enable menu
+item\\\\n    if g_AutoEnable\\\\n        A_TrayMenu.Check(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    else\\\\n        A_TrayMenu.Uncheck(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    \\\\n    ; Update icon and tooltip\\\\n    A_IconTip := \\\\"HebrewFixer: \\\\"
+. (g_Enabled ? \\\\"ON\\\\" : \\\\"OFF\\\\") . (g_AutoEnable ? \\\\" [Auto]\\\\" : \\\\"\\\\")\\\\n
+\\\\n    ; Use custom Shin icons from Desktop (or script directory)\\\\n    iconPath := A_ScriptDir .
+\\\\"\\\\\\\\\\\\"\\\\n    try {\\\\n        if g_Enabled\\\\n            TraySetIcon(iconPath .
+\\\\"hebrew_fixer_on.ico\\\\")\\\\n        else\\\\n            TraySetIcon(iconPath .
+\\\\"hebrew_fixer_off.ico\\\\")\\\\n    } catch {\\\\n        ; Fallback to shell32 icons if custom
+icons not found\\\\n        try {\\\\n            if g_Enabled\\\\n
+TraySetIcon(\\\\"shell32.dll\\\\", 44)\\\\n            else\\\\n
+TraySetIcon(\\\\"shell32.dll\\\\", 1)\\\\n        }\\\\n    }\\\\n}"}\', \'logfire.msg\': \'running
+tool: find_and_replace_code\', \'logfire.json_schema\': \'{"type": "object", "properties":
+{"tool_arguments": {"type": "object"}, "tool_response": {"type": "object"}, "gen_ai.tool.name": {},
+"gen_ai.tool.call.id": {}}}\', \'logfire.span_type\': \'span\'}', 'module': 'tool', 'name':
+'rovodev.modules.analytics.mappers.tool', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 20, 458756,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=325657), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 20, 520845,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=334472), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=105788, name='analytics-send_0'), 'time':
+datetime(2026, 2, 6, 0, 44, 20, 529660, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=364503), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=92320, name='analytics-send_2'), 'time':
+datetime(2026, 2, 6, 0, 44, 20, 559691, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=371410), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper ToolEventMapper for span running tool', 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 20, 566598,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+  File "git\repo\base.py", line 289, in __init__
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+
+During handling of the above exception, another exception occurred:
+
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 204, in write
+--- End of logging error ---
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- Logging error in Loguru Handler #1 ---
+--- End of logging error ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=530292), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper CodeModificationMapper for span running tool', 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 20, 725480,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=551108), 'exception': None,
+'extra': {}, 'file': (name='devaiaxis_processor.py',
+path='rovodev\\modules\\analytics\\processors\\devaiaxis_processor.py'), 'function': '_send_event',
+'level': (name='DEBUG', no=10, icon='🐞'), 'line': 62, 'message': 'Sent event to api_gateway: rovodev
+llm completed', 'module': 'devaiaxis_processor', 'name':
+'rovodev.modules.analytics.processors.devaiaxis_processor', 'process': (id=96604, name='MainProcess'),
+'thread': (id=85396, name='analytics-send_3'), 'time': datetime(2026, 2, 6, 0, 44, 20, 746296,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=556192), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time': datetime(2026,
+2, 6, 0, 44, 20, 751380, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- Logging error in Loguru Handler #1 ---
+--- End of logging error ---
+--- End of logging error ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=748447), 'exception': None,
+'extra': {}, 'file': (name='tool.py', path='rovodev\\modules\\analytics\\mappers\\tool.py'),
+'function': 'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 38, 'message': 'Processing
+tool event with attributes: {\'gen_ai.tool.name\': \'find_and_replace_code\', \'gen_ai.tool.call.id\':
+\'toolu_bdrk_011KTAMBWDu5EQKszygDuzWC\', \'tool_arguments\': \'{"file_path":
+"C:\\\\\\\\Users\\\\\\\\FireSongz\\\\\\\\Desktop\\\\\\\\HebrewFixer_BiDiPaste.ahk", "find":
+"UpdateTray() {\\\\n    global g_Enabled, g_AutoEnable\\\\n    \\\\n    ; Update checkmark for
+auto-enable menu item\\\\n    if g_AutoEnable\\\\n        A_TrayMenu.Check(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    else\\\\n        A_TrayMenu.Uncheck(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    \\\\n    ; Update icon and tooltip\\\\n    A_IconTip := \\\\"HebrewFixer: \\\\"
+. (g_Enabled ? \\\\"ON\\\\" : \\\\"OFF\\\\") . (g_AutoEnable ? \\\\" [Auto]\\\\" : \\\\"\\\\")\\\\n
+try {\\\\n        if g_Enabled\\\\n            TraySetIcon(\\\\"shell32.dll\\\\", 44)\\\\n
+else\\\\n            TraySetIcon(\\\\"shell32.dll\\\\", 1)\\\\n    }\\\\n}", "replace": "UpdateTray()
+{\\\\n    global g_Enabled, g_AutoEnable\\\\n    \\\\n    ; Update checkmark for auto-enable menu
+item\\\\n    if g_AutoEnable\\\\n        A_TrayMenu.Check(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    else\\\\n        A_TrayMenu.Uncheck(\\\\"Auto-enable on Hebrew
+keyboard\\\\")\\\\n    \\\\n    ; Update icon and tooltip\\\\n    A_IconTip := \\\\"HebrewFixer: \\\\"
+. (g_Enabled ? \\\\"ON\\\\" : \\\\"OFF\\\\") . (g_AutoEnable ? \\\\" [Auto]\\\\" : \\\\"\\\\")\\\\n
+\\\\n    ; Use custom Shin icons from Desktop (or script directory)\\\\n    iconPath := A_ScriptDir .
+\\\\"\\\\\\\\\\\\"\\\\n    try {\\\\n        if g_Enabled\\\\n            TraySetIcon(iconPath .
+\\\\"hebrew_fixer_on.ico\\\\")\\\\n        else\\\\n            TraySetIcon(iconPath .
+\\\\"hebrew_fixer_off.ico\\\\")\\\\n    } catch {\\\\n        ; Fallback to shell32 icons if custom
+icons not found\\\\n        try {\\\\n            if g_Enabled\\\\n
+TraySetIcon(\\\\"shell32.dll\\\\", 44)\\\\n            else\\\\n
+TraySetIcon(\\\\"shell32.dll\\\\", 1)\\\\n        }\\\\n    }\\\\n}"}\', \'logfire.msg\': \'running
+tool: find_and_replace_code\', \'logfire.json_schema\': \'{"type": "object", "properties":
+{"tool_arguments": {"type": "object"}, "tool_response": {"type": "object"}, "gen_ai.tool.name": {},
+"gen_ai.tool.call.id": {}}}\', \'logfire.span_type\': \'span\', \'tool_response\': \'Successfully
+replaced code in C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk:\\n\\n---
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk\\n+++
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk\\n@@ -132,11 +132,22 @@\\n     \\n
+; Update icon and tooltip\\n     A_IconTip := "HebrewFixer: " . (g_Enabled ? "ON" : "OFF") .
+(g_AutoEnable ? " [Auto]" : "")\\n+    \\n+    ; Use custom Shin icons from Desktop (or script
+directory)\\n+    iconPath := A_ScriptDir . "\\\\"\\n     try {\\n         if g_Enabled\\n-
+TraySetIcon("shell32.dll", 44)\\n+            TraySetIcon(iconPath . "hebrew_fixer_on.ico")\\n
+else\\n-            TraySetIcon("shell32.dll", 1)\\n+            TraySetIcon(iconPath .
+"hebrew_fixer_off.ico")\\n+    } catch {\\n+        ; Fallback to shell32 icons if custom icons not
+found\\n+        try {\\n+            if g_Enabled\\n+                TraySetIcon("shell32.dll",
+44)\\n+            else\\n+                TraySetIcon("shell32.dll", 1)\\n+        }\\n     }\\n }\\n
+\\n\'}', 'module': 'tool', 'name': 'rovodev.modules.analytics.mappers.tool', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 20,
+943635, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=790025), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics:
+llm_tool_call started', 'module': 'atlassian_client', 'name':
+'rovodev.modules.analytics.atlassian_client', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 20, 985213,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- Logging error in Loguru Handler #1 ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=910619), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message':
+"No mappers found for span 'running tool'", 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21, 105807,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1310, microseconds=915437), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=105788, name='analytics-send_0'), 'time': datetime(2026, 2, 6, 0, 44, 21, 110625,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+  File "loguru\_file_sink.py", line 204, in write
+  File "git\repo\base.py", line 289, in __init__
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+
+During handling of the above exception, another exception occurred:
+
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=14582), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message':
+"No mappers found for span 'running tools'", 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21, 209770,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=21714), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time':
+datetime(2026, 2, 6, 0, 44, 21, 216902, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_handler.py", line 206, in emit
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 204, in write
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=114600), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=105788, name='analytics-send_0'), 'time': datetime(2026,
+2, 6, 0, 44, 21, 309788, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=140320), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message':
+"No mappers found for span 'running tools'", 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21, 335508,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+--- End of logging error ---
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=233350), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics:
+llm_tool_call completed', 'module': 'atlassian_client', 'name':
+'rovodev.modules.analytics.atlassian_client', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=105788, name='analytics-send_0'), 'time': datetime(2026, 2, 6, 0, 44, 21, 428538,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=244656), 'exception': None,
+'extra': {'component': 'nemo.agent'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_call_tools_end', 'level': (name='INFO',
+no=20, icon='ℹ️'), 'line': 144, 'message': 'Tool calls completed', 'module': 'logging_callback',
+'name': 'nemo.callbacks.logging_callback', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21, 439844,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=334619), 'exception': None,
+'extra': {'component': 'nemo.agent', 'num_parts': 1, 'requests': 281}, 'file':
+(name='logging_callback.py', path='nemo\\callbacks\\logging_callback.py'), 'function':
+'on_model_request_start', 'level': (name='INFO', no=20, icon='ℹ️'), 'line': 91, 'message': 'Model
+request - Parts: 1, Request #281', 'module': 'logging_callback', 'name':
+'nemo.callbacks.logging_callback', 'process': (id=96604, name='MainProcess'), 'thread': (id=75000,
+name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21, 529807,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=378734), 'exception': None,
+'extra': {'component': 'nemo.agent', 'part': '{"tool_name": "find_and_replace_code", "content":
+"Successfully replaced code in
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk:\\n\\n---
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk\\n+++
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk\\n@@ -132,11 +132,22 @@\\n     \\n
+; Update icon and tooltip\\n     A_IconTip := \\"HebrewFixer: \\" . (g_Enabled ? \\"ON\\" : \\"OFF\\")
+. (g_AutoEnable ? \\" [Auto]\\" : \\"\\")\\n+    \\n+    ; Use custom Shin icons from Desktop (or
+script directory)\\n+    iconPath := A_ScriptDir . \\"\\\\\\"\\n     try {\\n         if g_Enabled\\n-
+TraySetIcon(\\"shell32.dll\\", 44)\\n+            TraySetIcon(iconPath . \\"hebrew_fixer_on.ico\\")\\n
+else\\n-            TraySetIcon(\\"shell32.dll\\", 1)\\n+            TraySetIcon(iconPath .
+\\"hebrew_fixer_off.ico\\")\\n+    } catch {\\n+        ; Fallback to shell32 icons if custom icons
+not found\\n+        try {\\n+            if g_Enabled\\n+
+TraySetIcon(\\"shell32.dll\\", 44)\\n+            else\\n+
+TraySetIcon(\\"shell32.dll\\", 1)\\n+        }\\n     }\\n }\\n \\n", "tool_call_id":
+"toolu_bdrk_011KTAMBWDu5EQKszygDuzWC", "metadata": null, "timestamp":
+"2026-02-06T05:44:21.209408+00:00", "part_kind": "tool-return"}'}, 'file':
+(name='logging_callback.py', path='nemo\\callbacks\\logging_callback.py'), 'function':
+'on_model_request_start', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 99, 'message': 'Model
+request part: {"tool_name": "find_and_replace_code", "content": "Successfully replaced code in
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk:\\n\\n---
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk\\n+++
+C:\\\\Users\\\\FireSongz\\\\Desktop\\\\HebrewFixer_BiDiPaste.ahk\\n@@ -132,11 +132,22 @@\\n     \\n
+; Update icon and tooltip\\n     A_IconTip := \\"HebrewFixer: \\" . (g_Enabled ? \\"ON\\" : \\"OFF\\")
+. (g_AutoEnable ? \\" [Auto]\\" : \\"\\")\\n+    \\n+    ; Use custom Shin icons from Desktop (or
+script directory)\\n+    iconPath := A_ScriptDir . \\"\\\\\\"\\n     try {\\n         if g_Enabled\\n-
+TraySetIcon(\\"shell32.dll\\", 44)\\n+            TraySetIcon(iconPath . \\"hebrew_fixer_on.ico\\")\\n
+else\\n-            TraySetIcon(\\"shell32.dll\\", 1)\\n+            TraySetIcon(iconPath .
+\\"hebrew_fixer_off.ico\\")\\n+    } catch {\\n+        ; Fallback to shell32 icons if custom icons
+not found\\n+        try {\\n+            if g_Enabled\\n+
+TraySetIcon(\\"shell32.dll\\", 44)\\n+            else\\n+
+TraySetIcon(\\"shell32.dll\\", 1)\\n+        }\\n     }\\n }\\n \\n", "tool_call_id":
+"toolu_bdrk_011KTAMBWDu5EQKszygDuzWC", "metadata": null, "timestamp":
+"2026-02-06T05:44:21.209408+00:00", "part_kind": "tool-return"}', 'module': 'logging_callback',
+'name': 'nemo.callbacks.logging_callback', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21, 573922,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+
+─── Response ─────────────────────────────────────────────────────────────────────────────────────────
+All icons created. Now let me update the HebrewFixer script to use these custom icons:
+──────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⬢ Called find_and_replace_code:
+      • file_path: "C:\\Users\\FireSongz\\Desktop\\HebrewFixer_BiDiPaste.ahk"
+      • find: "UpdateTray() {\n    global g_Enabled, g_AutoEnable\n    \n    ; Update checkmark for
+auto-enable menu ...
+      • replace: "UpdateTray() {\n    global g_Enabled, g_AutoEnable\n    \n    ; Update checkmark for
+auto-enable me...
+
+
+  C:\Users\FireSongz\Desktop\HebrewFixer_BiDiPaste.ahk:
+
+
+   --- C:\Users\FireSongz\Desktop\HebrewFixer_BiDiPaste.ahk
+   +++ C:\Users\FireSongz\Desktop\HebrewFixer_BiDiPaste.ahk
+   @@ -132,11 +132,22 @@
+
+        ; Update icon and tooltip
+        A_IconTip := "HebrewFixer: " . (g_Enabled ? "ON" : "OFF") . (g_AutoEnable ? " [Auto]" : "")
+   +
+   +    ; Use custom Shin icons from Desktop (or script directory)
+   +    iconPath := A_ScriptDir . "\"
+        try {
+   (7 lines truncated)
+   +        ; Fallback to shell32 icons if custom icons not found
+   +        try {
+   +            if g_Enabled
+   +                TraySetIcon("shell32.dll", 44)
+   +            else
+   +                TraySetIcon("shell32.dll", 1)
+   +        }
+        }
+    }
+
+
+
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=465770), 'exception': None,
+'extra': {'component': 'nemo.agent'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_stream_start', 'level': (name='INFO',
+no=20, icon='ℹ️'), 'line': 109, 'message': 'Model response streaming started', 'module':
+'logging_callback', 'name': 'nemo.callbacks.logging_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 21,
+660958, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1311, microseconds=477605), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=105788, name='analytics-send_0'), 'time':
+datetime(2026, 2, 6, 0, 44, 21, 672793, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=179863), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper LLMEventMapper for span chat
+fallback:anthropic.claude-opus-4-5-20251101-v1:0,gpt-5.2-latest,anthropic.claude-sonnet-4-5-20250929-v
+1:0,claude-sonnet-4@20250514,gpt-5-latest', 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 22, 375051,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=189446), 'exception': None,
+'extra': {}, 'file': (name='llm.py', path='rovodev\\modules\\analytics\\mappers\\llm.py'), 'function':
+'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 29, 'message': 'Processing LLM event',
+'module': 'llm', 'name': 'rovodev.modules.analytics.mappers.llm', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 22,
+384634, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=212059), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper LLMEventMapper for span chat
+fallback:anthropic.claude-opus-4-5-20251101-v1:0,gpt-5.2-latest,anthropic.claude-sonnet-4-5-20250929-v
+1:0,claude-sonnet-4@20250514,gpt-5-latest', 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 22, 407247,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- Logging error in Loguru Handler #1 ---
+--- End of logging error ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=212929), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=92320, name='analytics-send_2'), 'time': datetime(2026, 2, 6, 0, 44, 22, 408117,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+  File "git\repo\base.py", line 289, in __init__
+--- Logging error in Loguru Handler #1 ---
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=224117), 'exception': None,
+'extra': {}, 'file': (name='llm.py', path='rovodev\\modules\\analytics\\mappers\\llm.py'), 'function':
+'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 29, 'message': 'Processing LLM event',
+'module': 'llm', 'name': 'rovodev.modules.analytics.mappers.llm', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 22,
+419305, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+Traceback (most recent call last):
+--- End of logging error ---
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=239962), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=92320, name='analytics-send_2'), 'time': datetime(2026,
+2, 6, 0, 44, 22, 435150, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=259995), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics:
+llm_call started', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=92320, name='analytics-send_2'), 'time':
+datetime(2026, 2, 6, 0, 44, 22, 455183, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=271189), 'exception': None,
+'extra': {}, 'file': (name='adaptive_fallback_model.py',
+path='rovodev\\modules\\adaptive_fallback_model.py'), 'function': 'apply_default_model_settings',
+'level': (name='DEBUG', no=10, icon='🐞'), 'line': 550, 'message': "Applied model settings:
+{'max_tokens': 8192}", 'module': 'adaptive_fallback_model', 'name':
+'rovodev.modules.adaptive_fallback_model', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 22, 466377,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=385853), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=92320, name='analytics-send_2'), 'time':
+datetime(2026, 2, 6, 0, 44, 22, 581041, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1312, microseconds=750567), 'exception': None,
+'extra': {}, 'file': (name='devaiaxis_processor.py',
+path='rovodev\\modules\\analytics\\processors\\devaiaxis_processor.py'), 'function': '_send_event',
+'level': (name='DEBUG', no=10, icon='🐞'), 'line': 62, 'message': 'Sent event to api_gateway: rovodev
+llm started', 'module': 'devaiaxis_processor', 'name':
+'rovodev.modules.analytics.processors.devaiaxis_processor', 'process': (id=96604, name='MainProcess'),
+'thread': (id=85396, name='analytics-send_3'), 'time': datetime(2026, 2, 6, 0, 44, 22, 945755,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1322, microseconds=740980), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper LLMEventMapper for span chat anthropic.claude-opus-4-5-20251101-v1:0', 'module':
+'registry', 'name': 'rovodev.modules.analytics.mappers.registry', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 32,
+936168, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1322, microseconds=796099), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper AIResultEventMapper for span chat anthropic.claude-opus-4-5-20251101-v1:0', 'module':
+'registry', 'name': 'rovodev.modules.analytics.mappers.registry', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 32,
+991287, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1322, microseconds=845931), 'exception': None,
+'extra': {}, 'file': (name='llm.py', path='rovodev\\modules\\analytics\\mappers\\llm.py'), 'function':
+'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 29, 'message': 'Processing LLM event',
+'module': 'llm', 'name': 'rovodev.modules.analytics.mappers.llm', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+41119, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1322, microseconds=914947), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 33, 110135,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1322, microseconds=913114), 'exception': None,
+'extra': {}, 'file': (name='ai_result.py', path='rovodev\\modules\\analytics\\mappers\\ai_result.py'),
+'function': 'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Processing
+aiResult viewed event for unified AI instrumentation', 'module': 'ai_result', 'name':
+'rovodev.modules.analytics.mappers.ai_result', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33, 108302,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+  File "loguru\_handler.py", line 206, in emit
+  File "git\repo\base.py", line 289, in __init__
+  File "loguru\_file_sink.py", line 204, in write
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+
+During handling of the above exception, another exception occurred:
+
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+Traceback (most recent call last):
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_handler.py", line 206, in emit
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=34793), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper LLMEventMapper for span chat anthropic.claude-opus-4-5-20251101-v1:0', 'module':
+'registry', 'name': 'rovodev.modules.analytics.mappers.registry', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+229981, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=38976), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=105788, name='analytics-send_0'), 'time': datetime(2026, 2, 6, 0, 44, 33, 234164,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 204, in write
+  File "git\repo\base.py", line 289, in __init__
+--- End of logging error ---
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+--- Logging error in Loguru Handler #1 ---
+--- End of logging error ---
+
+During handling of the above exception, another exception occurred:
+
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=124273), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time': datetime(2026,
+2, 6, 0, 44, 33, 319461, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=152043), 'exception': None,
+'extra': {}, 'file': (name='llm.py', path='rovodev\\modules\\analytics\\mappers\\llm.py'), 'function':
+'map_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 29, 'message': 'Processing LLM event',
+'module': 'llm', 'name': 'rovodev.modules.analytics.mappers.llm', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+347231, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- End of logging error ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=269396), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics:
+llm_call completed', 'module': 'atlassian_client', 'name':
+'rovodev.modules.analytics.atlassian_client', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 33, 464584,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=283669), 'exception': None,
+'extra': {'component': 'nemo.agent'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_stream_end', 'level': (name='INFO',
+no=20, icon='ℹ️'), 'line': 113, 'message': 'Model response streaming completed', 'module':
+'logging_callback', 'name': 'nemo.callbacks.logging_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+478857, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=300311), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=105788, name='analytics-send_0'), 'time': datetime(2026,
+2, 6, 0, 44, 33, 495499, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=422024), 'exception': None,
+'extra': {'component': 'nemo.agent'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_model_request_end', 'level':
+(name='INFO', no=20, icon='ℹ️'), 'line': 105, 'message': 'Model request completed', 'module':
+'logging_callback', 'name': 'nemo.callbacks.logging_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+617212, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=440196), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics:
+aiResult viewed', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=105788, name='analytics-send_0'), 'time':
+datetime(2026, 2, 6, 0, 44, 33, 635384, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=523935), 'exception': None,
+'extra': {'component': 'nemo.agent', 'model': 'claude-opus-4-5-20251101', 'num_parts': 1, 'usage':
+'{"input_tokens": 168196, "cache_write_tokens": 997, "cache_read_tokens": 167196, "output_tokens":
+207, "input_audio_tokens": 0, "cache_audio_read_tokens": 0, "output_audio_tokens": 0, "details":
+{"cache_creation_input_tokens": 997, "cache_read_input_tokens": 167196, "input_tokens": 3,
+"output_tokens": 207}}'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_call_tools_start', 'level':
+(name='INFO', no=20, icon='ℹ️'), 'line': 129, 'message': 'Model response - Model:
+claude-opus-4-5-20251101, Parts: 1, Usage: {"input_tokens": 168196, "cache_write_tokens": 997,
+"cache_read_tokens": 167196, "output_tokens": 207, "input_audio_tokens": 0, "cache_audio_read_tokens":
+0, "output_audio_tokens": 0, "details": {"cache_creation_input_tokens": 997,
+"cache_read_input_tokens": 167196, "input_tokens": 3, "output_tokens": 207}}', 'module':
+'logging_callback', 'name': 'nemo.callbacks.logging_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+719123, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=573941), 'exception': None,
+'extra': {'component': 'nemo.agent', 'text': "Done! The script now uses the custom Shin icons:\n\n-
+**`hebrew_fixer_on.ico`** - White square with black ש (enabled)\n- **`hebrew_fixer_off.ico`** - Same
+but with red X overlay (disabled)\n\nThe script looks for the icons in the same directory as the
+script (`A_ScriptDir`). If they're not found, it falls back to the shell32 icons.\n\n**Test it:**\n1.
+Make sure `hebrew_fixer_on.ico` and `hebrew_fixer_off.ico` are on your Desktop (same folder as the
+script)\n2. Run `HebrewFixer_BiDiPaste.ahk`\n3. The tray icon should show the Shin\n4. Toggle with
+Ctrl+Alt+H and watch the icon change\n\nHow do they look? Want me to clean up the intermediate PNG
+files?"}, 'file': (name='logging_callback.py', path='nemo\\callbacks\\logging_callback.py'),
+'function': 'on_call_tools_start', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 137, 'message':
+"Model response text: Done! The script now uses the custom Shin icons:\n\n- **`hebrew_fixer_on.ico`**
+- White square with black ש (enabled)\n- **`hebrew_fixer_off.ico`** - Same but with red X overlay
+(disabled)\n\nThe script looks for the icons in the same directory as the script (`A_ScriptDir`). If
+they're not found, it falls back to the shell32 icons.\n\n**Test it:**\n1. Make sure
+`hebrew_fixer_on.ico` and `hebrew_fixer_off.ico` are on your Desktop (same folder as the script)\n2.
+Run `HebrewFixer_BiDiPaste.ahk`\n3. The tray icon should show the Shin\n4. Toggle with Ctrl+Alt+H and
+watch the icon change\n\nHow do they look? Want me to clean up the intermediate PNG files?", 'module':
+'logging_callback', 'name': 'nemo.callbacks.logging_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33,
+769129, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- Logging error in Loguru Handler #1 ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=598505), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time':
+datetime(2026, 2, 6, 0, 44, 33, 793693, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=609184), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=105788, name='analytics-send_0'), 'time':
+datetime(2026, 2, 6, 0, 44, 33, 804372, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+--- End of logging error ---
+Traceback (most recent call last):
+Traceback (most recent call last):
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=649581), 'exception': None,
+'extra': {}, 'file': (name='devaiaxis_processor.py',
+path='rovodev\\modules\\analytics\\processors\\devaiaxis_processor.py'), 'function': '_send_event',
+'level': (name='DEBUG', no=10, icon='🐞'), 'line': 62, 'message': 'Sent event to api_gateway: rovodev
+llm completed', 'module': 'devaiaxis_processor', 'name':
+'rovodev.modules.analytics.processors.devaiaxis_processor', 'process': (id=96604, name='MainProcess'),
+'thread': (id=92320, name='analytics-send_2'), 'time': datetime(2026, 2, 6, 0, 44, 33, 844769,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1323, microseconds=655373), 'exception': None,
+'extra': {'component': 'nemo.agent'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_call_tools_end', 'level': (name='INFO',
+no=20, icon='ℹ️'), 'line': 144, 'message': 'Tool calls completed', 'module': 'logging_callback',
+'name': 'nemo.callbacks.logging_callback', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 33, 850561,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=299132), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper AgentRunUsageTrackingEventMapper for span agent run', 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 34, 494320,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=360198), 'exception': None,
+'extra': {}, 'file': (name='agent_run_usage_tracking.py',
+path='rovodev\\modules\\analytics\\mappers\\agent_run_usage_tracking.py'), 'function': 'map_event',
+'level': (name='DEBUG', no=10, icon='🐞'), 'line': 71, 'message': "[USAGE TRACKING - END]
+event_attributes: {'sessionId': 'waf84320-2b5b-4799-a7ed-5d39642a4bdb', 'isAIFeature': 1,
+'userGeneratedAI': 1, 'singleInstrumentationID':
+'waf84320-2b5b-4799-a7ed-5d39642a4bdb_9390a71b-f8be-46f3-a77f-30cf9a2672dd', 'aiFeatureName':
+'rovodevCLI', 'start_time': '2026-02-06T05:44:34.543164Z', 'rovodev_config_llm':
+'anthropic.claude-opus-4-5-20251101-v1:0', 'trace_id': '019c3179dfc6adf470333b1f1d64c8ee', 'span_id':
+'975db87787d0d7c4', 'feature': 'rovodev-cli', 'authMethod': 'api_token', 'containerId':
+'ari:cloud:platform::site/5d9d9ffc-8148-463d-9f13-638c6f391de0', 'actorIdHash':
+'d11a6aa42844202070c7f19dde2b1badbee1d5a54790f106f2dc377fa930d874', 'actorId':
+'ari:cloud:identity::user/712020:3ffe95d9-95d8-480b-b954-f534ffa01cfe', 'isBetaEdition': False,
+'rovoDevEntitlement': 'ROVO_DEV_STANDARD_TRIAL', 'usageTimestamp': 1770356674048, 'duration_ms':
+77370, 'success': True, 'behaviourId':
+'waf84320-2b5b-4799-a7ed-5d39642a4bdb_9390a71b-f8be-46f3-a77f-30cf9a2672dd', 'llmCount': 5,
+'llmRequestCount': 4}", 'module': 'agent_run_usage_tracking', 'name':
+'rovodev.modules.analytics.mappers.agent_run_usage_tracking', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 34,
+555386, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=410225), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message':
+"No mappers found for span 'agent run'", 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 34, 605413,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=410905), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=85396, name='analytics-send_3'), 'time': datetime(2026, 2, 6, 0, 44, 34, 606093,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "git\repo\base.py", line 289, in __init__
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+--- End of logging error ---
+
+During handling of the above exception, another exception occurred:
+
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=500751), 'exception': None,
+'extra': {'component': 'nemo.agent', 'agent_name': 'Response', 'usage': '{"input_tokens": 30194883,
+"cache_write_tokens": 3377969, "cache_read_tokens": 26816071, "output_tokens": 77689,
+"input_audio_tokens": 0, "cache_audio_read_tokens": 0, "output_audio_tokens": 0, "details":
+{"cache_creation_input_tokens": 3377969, "cache_read_input_tokens": 26816071, "input_tokens": 843,
+"output_tokens": 77689}, "requests": 281, "tool_calls": 235}'}, 'file': (name='logging_callback.py',
+path='nemo\\callbacks\\logging_callback.py'), 'function': 'on_agent_run_end', 'level': (name='INFO',
+no=20, icon='ℹ️'), 'line': 64, 'message': 'Completed agent run for agent \'Response\' - Final usage:
+{"input_tokens": 30194883, "cache_write_tokens": 3377969, "cache_read_tokens": 26816071,
+"output_tokens": 77689, "input_audio_tokens": 0, "cache_audio_read_tokens": 0, "output_audio_tokens":
+0, "details": {"cache_creation_input_tokens": 3377969, "cache_read_input_tokens": 26816071,
+"input_tokens": 843, "output_tokens": 77689}, "requests": 281, "tool_calls": 235}', 'module':
+'logging_callback', 'name': 'nemo.callbacks.logging_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 34,
+695939, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=580245), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=85396, name='analytics-send_3'), 'time': datetime(2026,
+2, 6, 0, 44, 34, 775433, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=590569), 'exception': None,
+'extra': {'component': 'nemo.agent', 'result': '"Done! The script now uses the custom Shin
+icons:\\n\\n- **`hebrew_fixer_on.ico`** - White square with black \\u05e9 (enabled)\\n-
+**`hebrew_fixer_off.ico`** - Same but with red X overlay (disabled)\\n\\nTh...'}, 'file':
+(name='logging_callback.py', path='nemo\\callbacks\\logging_callback.py'), 'function':
+'on_agent_run_end', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 75, 'message': 'Agent run
+result: "Done! The script now uses the custom Shin icons:\\n\\n- **`hebrew_fixer_on.ico`** - White
+square with black \\u05e9 (enabled)\\n- **`hebrew_fixer_off.ico`** - Same but with red X overlay
+(disabled)\\n\\nTh...', 'module': 'logging_callback', 'name': 'nemo.callbacks.logging_callback',
+'process': (id=96604, name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time':
+datetime(2026, 2, 6, 0, 44, 34, 785757, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=667559), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics:
+rovodev-ai-credit ai-exp-request-end', 'module': 'atlassian_client', 'name':
+'rovodev.modules.analytics.atlassian_client', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=85396, name='analytics-send_3'), 'time': datetime(2026, 2, 6, 0, 44, 34, 862747,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+--- Logging error in Loguru Handler #1 ---
+Traceback (most recent call last):
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=680099), 'exception': None,
+'extra': {}, 'file': (name='git_ai.py', path='rovodev\\common\\git_ai.py'), 'function':
+'on_agent_run_end', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 491, 'message': 'Collecting
+git-ai stats after agent run completion', 'module': 'git_ai', 'name': 'rovodev.common.git_ai',
+'process': (id=96604, name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time':
+datetime(2026, 2, 6, 0, 44, 34, 875287, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+  File "loguru\_handler.py", line 206, in emit
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=763760), 'exception': None,
+'extra': {}, 'file': (name='agent_run_llm_tracking_callback.py',
+path='rovodev\\modules\\analytics\\callbacks\\agent_run_llm_tracking_callback.py'), 'function':
+'on_agent_run_end', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 44, 'message':
+'[USAGE_TRACKING_CALLBACK] [on_agent_run_end] agent_run_id:
+waf84320-2b5b-4799-a7ed-5d39642a4bdb_9390a71b-f8be-46f3-a77f-30cf9a2672dd', 'module':
+'agent_run_llm_tracking_callback', 'name':
+'rovodev.modules.analytics.callbacks.agent_run_llm_tracking_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 34,
+958948, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=763849), 'exception': None,
+'extra': {}, 'file': (name='git_ai.py', path='rovodev\\common\\git_ai.py'), 'function':
+'get_git_ai_stats_binary_path', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 86, 'message':
+'Using bundled legacy Git-AI for stats-delta:
+C:\\Users\\FireSongz\\.local\\share\\acli\\1.3.13-stable\\plugin\\rovodev\\git-ai\\git-ai.exe',
+'module': 'git_ai', 'name': 'rovodev.common.git_ai', 'process': (id=96604, name='MainProcess'),
+'thread': (id=84704, name='Thread-50 (_collect_git_ai_stats_impl)'), 'time': datetime(2026, 2, 6, 0,
+44, 34, 959037, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- Logging error in Loguru Handler #1 ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=829200), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian
+Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client',
+'process': (id=96604, name='MainProcess'), 'thread': (id=85396, name='analytics-send_3'), 'time':
+datetime(2026, 2, 6, 0, 44, 35, 24388, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+--- End of logging error ---
+--- End of logging error ---
+Traceback (most recent call last):
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_handler.py", line 206, in emit
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=871406), 'exception': None,
+'extra': {}, 'file': (name='agent_run_analytics_callback.py',
+path='rovodev\\modules\\analytics\\callbacks\\agent_run_analytics_callback.py'), 'function':
+'on_agent_run_end', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 84, 'message':
+'[USER_PROMPT_TRACKING] Set response: Done! The script now uses the custom Shin icons:\n\n-
+**`hebrew_fixer_on.ico`** - White square with bl...', 'module': 'agent_run_analytics_callback',
+'name': 'rovodev.modules.analytics.callbacks.agent_run_analytics_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 35,
+66594, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+  File "loguru\_file_sink.py", line 204, in write
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+--- End of logging error ---
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1324, microseconds=954452), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 41, 'message':
+'Found mapper AgentRunEventMapper for span rovodev.agent_run.user_prompt', 'module': 'registry',
+'name': 'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'),
+'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 35, 149640,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=10825), 'exception': None,
+'extra': {}, 'file': (name='registry.py', path='rovodev\\modules\\analytics\\mappers\\registry.py'),
+'function': 'get_mappers_for_span', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message':
+"No mappers found for span 'rovodev.agent_run.user_prompt'", 'module': 'registry', 'name':
+'rovodev.modules.analytics.mappers.registry', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 35, 206013,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=12979), 'exception': None,
+'extra': {}, 'file': (name='repository_info.py',
+path='rovodev\\modules\\analytics\\repository_info.py'), 'function': 'get_current_branch', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 45, 'message': 'Failed to get current branch:
+C:\\Users\\FireSongz', 'module': 'repository_info', 'name':
+'rovodev.modules.analytics.repository_info', 'process': (id=96604, name='MainProcess'), 'thread':
+(id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 35, 208167,
+tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "rovodev\modules\analytics\repository_info.py", line 40, in get_current_branch
+  File "loguru\_file_sink.py", line 204, in write
+  File "git\repo\base.py", line 289, in __init__
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+git.exc.InvalidGitRepositoryError: C:\Users\FireSongz
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+
+During handling of the above exception, another exception occurred:
+
+--- End of logging error ---
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_file_sink.py", line 204, in write
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=104448), 'exception': None,
+'extra': {}, 'file': (name='agent_run_analytics_callback.py',
+path='rovodev\\modules\\analytics\\callbacks\\agent_run_analytics_callback.py'), 'function':
+'on_agent_run_end', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 92, 'message':
+'[USER_PROMPT_TRACKING] Ended span', 'module': 'agent_run_analytics_callback', 'name':
+'rovodev.modules.analytics.callbacks.agent_run_analytics_callback', 'process': (id=96604,
+name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 35,
+299636, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard
+Time'))}
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+Traceback (most recent call last):
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+  File "loguru\_handler.py", line 206, in emit
+--- End of logging error ---
+  File "loguru\_file_sink.py", line 204, in write
+--- Logging error in Loguru Handler #1 ---
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=160707), 'exception': None,
+'extra': {}, 'file': (name='atlassian_client.py',
+path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': '_get_sandbox_id', 'level':
+(name='DEBUG', no=10, icon='🐞'), 'line': 302, 'message': 'No ROVODEV_SANDBOX_ID environment variable
+found', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time': datetime(2026,
+2, 6, 0, 44, 35, 355895, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern
+Standard Time'))}
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+Traceback (most recent call last):
+
+─── Response ─────────────────────────────────────────────────────────────────────────────────────────
+Done! The script now uses the custom Shin icons:
+
+ • hebrew_fixer_on.ico - White square with black ש (enabled)
+ • hebrew_fixer_off.ico - Same but with red X overlay (disabled)
+
+The script looks for the icons in the same directory as the script (A_ScriptDir). If they're not
+found, it falls back to the shell32 icons.
+
+Test it:
+
+ 1 Make sure hebrew_fixer_on.ico and hebrew_fixer_off.ico are on your Desktop (same folder as the
+   script)
+ 2 Run HebrewFixer_BiDiPaste.ahk
+ 3 The tray icon should show the Shin
+ 4 Toggle with Ctrl+Alt+H and watch the icon change
+  File "loguru\_handler.py", line 206, in emit
+
+─── Response ─────────────────────────────────────────────────────────────────────────────────────────
+Done! The script now uses the custom Shin icons:
+
+ • hebrew_fixer_on.ico - White square with black ש (enabled)
+ • hebrew_fixer_off.ico - Same but with red X overlay (disabled)
+
+The script looks for the icons in the same directory as the script (A_ScriptDir). If they're not
+found, it falls back to the shell32 icons.
+
+Test it:
+
+ 1 Make sure hebrew_fixer_on.ico and hebrew_fixer_off.ico are on your Desktop (same folder as the
+   script)
+ 2 Run HebrewFixer_BiDiPaste.ahk
+ 3 The tray icon should show the Shin
+ 4 Toggle with Ctrl+Alt+H and watch the icon change
+
+How do they look? Want me to clean up the intermediate PNG files?
+──────────────────────────────────────────────────────────────────────────────────────────────────────  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=208064), 'exception': None, 'extra': {}, 'file': (name='atlassian_client.py', path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 148, 'message': 'Sending event to Atlassian Analytics: agent_run completed', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process': (id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 35, 403252, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' -> 'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=285256), 'exception': None, 'extra': {}, 'file': (name='atlassian_client.py', path='rovodev\\modules\\analytics\\atlassian_client.py'), 'function': 'send_event', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 152, 'message': 'Successfully sent event to Atlassian Analytics', 'module': 'atlassian_client', 'name': 'rovodev.modules.analytics.atlassian_client', 'process': (id=96604, name='MainProcess'), 'thread': (id=92912, name='analytics-send_1'), 'time': datetime(2026, 2, 6, 0, 44, 35, 480444, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' -> 'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1325, microseconds=633196), 'exception': None, 'extra': {}, 'file': (name='usage.py', path='rovodev\\modules\\usage.py'), 'function': 'get_usage_data', 'level': (name='DEBUG', no=10, icon='🐞'), 'line': 129, 'message': "[get_usage_data] Raw API response: {'status': 'OK', 'balance': {'dailyTotal': None, 'dailyRemaining': None, 'dailyUsed': None, 'monthlyTotal': 2000, 'monthlyRemaining': 880, 'monthlyUsed': 1120}, 'message': None, 'ctaLink': None, 'additionalEntitlementParams': None, 'retryAfterSeconds': None, 'userCreditLimits': {'user': {'atlassianAccountId': '712020:3ffe95d9-95d8-480b-b954-f534ffa01cfe', 'atlassianOrgId': 'f6206679-a790-428e-8908-54f1e83d005a', 'cloudId': '5d9d9ffc-8148-463d-9f13-638c6f391de0', 'devaiWorkspaceARI': {'system': {'empty': False}, 'resourceOwner': {'empty': False}, 'cloudId': {'undefined': True, 'empty': True}, 'resourceType': {'undefined': False, 'empty': False}, 'resourceId': {'fragments': ['53c6ebf2-6040-4f87-98d4-21e24279adc0'], 'undefined': False, 'empty': False}, 'ati': 'ati:cloud:devai:workspace', 'empty': False}, 'scmWorkspace': None, 'scmRepository': None, 'authType': 'ASAP', 'accountType': 'ANONYMOUS', 'isInternal': False, 'experienceId': 'rovodev-cli', 'isExistingBetaUser': None, 'sessionId': 'waf84320-2b5b-4799-a7ed-5d39642a4bdb', 'sessionAgentRunId': 'waf84320-2b5b-4799-a7ed-5d39642a4bdb_9390a71b-f8be-46f3-a77f-30cf9a2672dd', 'useMockResponse': None, 'productType': 'ROVO_DEV_STANDARD_TRIAL', 'ccpTransactionAccountId': None, 'ccpEntitlementId': '1119f0de-892c-3bb8-a806-df1126a71c9c', 'isProductAdmin': True, 'isOrgAdmin': True, 'requestIp': '63.133.237.176'}, 'limits': {'dailyTokenLimit': None, 'minuteTokenLimit': 400000, 'monthlyCreditAllocation': 2000, 'monthlyCreditCap': 4000, 'creditType': 'FREE'}}, 'modelUsages': {'Claude Opus 4.5': 35284798, 'gpt-5.2-latest': 38781}, 'modelCreditUsage': []}", 'module': 'usage', 'name': 'rovodev.modules.usage', 'process': (id=96604, name='MainProcess'), 'thread': (id=75000, name='MainThread'), 'time': datetime(2026, 2, 6, 0, 44, 35, 828384, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' -> 'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---
+Session context: ▮▮▮▮▮▮▮▮▮▮ 168.4K/200K| Tip: use the /prune command to reduce context size
+
+--- Logging error in Loguru Handler #1 ---
+Record was: {'elapsed': datetime.timedelta(seconds=1329, microseconds=346236), 'exception': None,
+'extra': {}, 'file': (name='fuzzy_file_matcher.py',
+path='rovodev\\ui\\components\\fuzzy_file_matcher.py'), 'function': '_build_file_cache', 'level':
+(name='WARNING', no=30, icon='⚠️'), 'line': 51, 'message': 'ripgrep failed with return code 2',
+'module': 'fuzzy_file_matcher', 'name': 'rovodev.ui.components.fuzzy_file_matcher', 'process':
+(id=96604, name='MainProcess'), 'thread': (id=106552, name='Thread-53 (_build_file_cache)'), 'time':
+datetime(2026, 2, 6, 0, 44, 39, 541424, tzinfo=datetime.timezone(datetime.timedelta(days=-1,
+seconds=68400), 'Eastern Standard Time'))}
+Traceback (most recent call last):
+  File "loguru\_handler.py", line 206, in emit
+  File "loguru\_file_sink.py", line 204, in write
+  File "loguru\_file_sink.py", line 276, in _terminate_file
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another
+process: 'C:\\Users\\FireSongz\\.rovodev\\rovodev.log' ->
+'C:\\Users\\FireSongz\\.rovodev\\rovodev.2026-02-05_12-30-08_376496.log'
+--- End of logging error ---

@@ -1,0 +1,4 @@
+RTF OSS Converter Tool Notes
+10:27 PM 2/2/2026
+
+This is going to be my notes from an attempt to fix the RTL text conversion for the Affinity Designer Program. I figure that the easiest way to do this is to use AHK. To the left of this note, I will have a vscode document open with AHK V2 language selected.
