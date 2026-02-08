@@ -1,5 +1,8 @@
 # Development documentation (internal notes, manuscripts)
-.rovodev/
+# Keep .rovodev contents out of git *except* manuscripts/handoffs (.md)
+.rovodev/*
+!.rovodev/*.md
+!.rovodev/**/*.md
 
 # Temporary working files
 Tmp/
