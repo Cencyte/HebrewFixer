@@ -45,6 +45,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Mandatory inter-operation delay (seconds) to accommodate the complex Explorer/D3D-hosted UI.
+# Per project requirement, this delay is applied between each major automation step.
+$Global:OperationDelaySeconds = 5
+
+function Step-Delay([string]$StepName) {
+    Write-Verbose ("[delay] {0}s after step: {1}" -f $Global:OperationDelaySeconds, $StepName)
+    Start-Sleep -Seconds $Global:OperationDelaySeconds
+}
+
 function Add-UIAutomationAssemblies {
     # These are part of .NET on Windows.
     Add-Type -AssemblyName UIAutomationClient
@@ -52,9 +61,13 @@ function Add-UIAutomationAssemblies {
 }
 
 function Start-NotificationAreaIcons {
-    # Legacy control panel page:
-    # control.exe /name Microsoft.NotificationAreaIcons
-    Start-Process -FilePath 'control.exe' -ArgumentList '/name Microsoft.NotificationAreaIcons'
+    # Proven invocation method (works even when other control panel launchers are flaky):
+    # - explorer shell:::{05d7b0f4-2121-4eff-bf6b-ed3f69b894d9}
+    # - or Shell.Application.Open("shell:::{...}")
+    $guidPath = 'shell:::{05d7b0f4-2121-4eff-bf6b-ed3f69b894d9}'
+
+    # Prefer explorer.exe for parity with the known-working AHK tests.
+    Start-Process -FilePath 'explorer.exe' -ArgumentList $guidPath
 }
 
 function Wait-ForWindow([string]$nameRegex, [TimeSpan]$timeout) {
@@ -194,30 +207,32 @@ $behaviorRegex = switch ($Behavior) {
 
 Add-UIAutomationAssemblies
 
-Write-Verbose "Launching Notification Area Icons control panel..."
+Write-Verbose "Launching Notification Area Icons dialog (shell GUID)..."
 Start-NotificationAreaIcons
+Step-Delay 'launch dialog'
 
 $timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
 $win = Wait-ForWindow -nameRegex $WindowNameRegex -timeout $timeout
-
 Write-Verbose "Found window: '$($win.Current.Name)'"
+Step-Delay 'find window'
 
 $row = Find-ListItemByRegex -window $win -itemRegex $Match
 if (-not $row) {
     throw "Could not find any row matching regex: $Match"
 }
-
 Write-Verbose "Matched row element name: '$($row.Current.Name)'"
+Step-Delay 'find row'
 
 # Select the row (helps ensure the combobox is realized)
 $selItem = $row.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
 if ($selItem) {
     $selItem.Select()
-    Start-Sleep -Milliseconds 100
 }
+Step-Delay 'select row'
 
 if ($PSCmdlet.ShouldProcess("Row matching '$Match'", "Set behavior to $Behavior")) {
     Set-ComboValueInRow -row $row -targetValueRegex $behaviorRegex
+    Step-Delay 'set combobox value'
     Write-Host "OK: Set behavior for '$Match' to '$Behavior'"
 } else {
     Write-Host "WhatIf: would set behavior for '$Match' to '$Behavior'"
