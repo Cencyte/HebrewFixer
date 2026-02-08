@@ -71,9 +71,47 @@ function Write-Log {
     $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
     $line = "[$ts][$Level] $Message"
 
-    # Write to console (verbose-friendly) + append to log file
+    # Console (color) + verbose + file
+    $color = switch ($Level) {
+        'ERROR' { 'Red' }
+        'WARN'  { 'Yellow' }
+        'OK'    { 'Green' }
+        'STEP'  { 'Cyan' }
+        'DEBUG' { 'DarkGray' }
+        default { 'Gray' }
+    }
+
+    try {
+        # Always emit a readable console line; Verbose is still useful when the caller uses -Verbose.
+        Write-Host $line -ForegroundColor $color
+    } catch {
+        # If host doesn't support color, ignore.
+    }
+
     Write-Verbose $line
     Add-Content -LiteralPath $Global:LogPath -Value $line -Encoding UTF8
+}
+
+function Get-ControlTypeName($el) {
+    try {
+        $ctObj = $el.Current.ControlType
+        if (-not $ctObj) { return '<null>' }
+        # Some objects may not expose ProgrammaticName in the way we expect.
+        $p = $ctObj.PSObject.Properties['ProgrammaticName']
+        if ($p) { return [string]$ctObj.ProgrammaticName }
+        return [string]$ctObj.ToString()
+    } catch {
+        return '<ct-error>'
+    }
+}
+
+function Get-RectString($el) {
+    try {
+        $r = $el.Current.BoundingRectangle
+        return ("[{0},{1},{2},{3}]" -f [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height)
+    } catch {
+        return ''
+    }
 }
 
 function Step-Delay([string]$StepName) {
@@ -125,82 +163,177 @@ function Find-FirstDescendant($root, [System.Windows.Automation.Condition]$condi
     return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
 }
 
-function Find-ListItemByRegex($window, [string]$itemRegex) {
-    Write-Log -Level 'DEBUG' -Message ("Find-ListItemByRegex | regex=/{0}/" -f $itemRegex)
-    # The main table is typically a List control.
-    $listCond = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-        [System.Windows.Automation.ControlType]::List
-    )
-    $list = Find-FirstDescendant $window $listCond
-    if (-not $list) {
-        Write-Log -Level 'ERROR' -Message 'Could not find List control in window (UI layout changed?)'
-        throw 'Could not find List control in window (UI layout changed?)'
-    }
-
-    Write-Log -Level 'DEBUG' -Message ("List found | Name='{0}' | ClassName='{1}'" -f $list.Current.Name, $list.Current.ClassName)
-
-    # Many builds expose rows as DataItem, but some expose Custom or ListItem.
-    $rowControlTypes = @(
-        [System.Windows.Automation.ControlType]::DataItem,
-        [System.Windows.Automation.ControlType]::ListItem,
-        [System.Windows.Automation.ControlType]::Custom
-    )
-
-    $items = New-Object System.Collections.Generic.List[System.Windows.Automation.AutomationElement]
-    foreach ($ct in $rowControlTypes) {
-        $cond = New-Object System.Windows.Automation.PropertyCondition(
-            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-            $ct
-        )
-        $found = $list.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
-        Write-Log -Level 'DEBUG' -Message ("Row count ({0} children): {1}" -f $ct.ProgrammaticName, $found.Count)
-        for ($i=0; $i -lt $found.Count; $i++) { [void]$items.Add($found.Item($i)) }
-    }
-
-    # De-dup by RuntimeId (best-effort)
-    $unique = @{}
-    foreach ($it in $items) {
-        try {
-            $rid = ($it.GetRuntimeId() -join '.')
-        } catch {
-            $rid = [System.Guid]::NewGuid().ToString()
-        }
-        if (-not $unique.ContainsKey($rid)) { $unique[$rid] = $it }
-    }
-    $items = @($unique.Values)
-    Write-Log -Level 'DEBUG' -Message ("Total unique candidate rows: {0}" -f $items.Count)
-    for ($i = 0; $i -lt $items.Count; $i++) {
-        $it = $items[$i]
-        $name = $it.Current.Name
-        if ($name -match $itemRegex) {
-            return $it
-        }
-
-        # Some builds may put the app name in Text descendants rather than DataItem name.
+function Get-RowTextSummary($row) {
+    try {
         $textCond = New-Object System.Windows.Automation.PropertyCondition(
             [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
             [System.Windows.Automation.ControlType]::Text
         )
-        $texts = $it.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond)
-        foreach ($t in $texts) {
-            if ($t.Current.Name -match $itemRegex) {
-                return $it
+        $texts = $row.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond)
+        $snippet = @()
+        for ($i=0; $i -lt $texts.Count; $i++) {
+            $n = $texts.Item($i).Current.Name
+            if ($n) { $snippet += $n }
+        }
+        return ($snippet | Select-Object -Unique | Select-Object -First 8) -join ' | '
+    } catch {
+        return ''
+    }
+}
+
+function Find-RowWithFallback($window, [string]$itemRegex) {
+    Write-Log -Level 'DEBUG' -Message ("Find-RowWithFallback | regex=/{0}/" -f $itemRegex)
+
+    # Find any plausible container (List or ScrollViewer)
+    $container = $null
+    $listCond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::List
+    )
+    $container = Find-FirstDescendant $window $listCond
+    if ($container) {
+        Write-Log -Level 'OK' -Message ("Container=List | Name='{0}' | Class='{1}'" -f $container.Current.Name, $container.Current.ClassName)
+    } else {
+        $paneCond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            [System.Windows.Automation.ControlType]::Pane
+        )
+        # Prefer the scrollviewer pane if present
+        $panes = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $paneCond)
+        for ($i=0; $i -lt $panes.Count; $i++) {
+            $p = $panes.Item($i)
+            if ($p.Current.Name -match 'scrollviewer' -or $p.Current.ClassName -match 'ScrollViewer') {
+                $container = $p
+                break
             }
+        }
+        if ($container) {
+            Write-Log -Level 'OK' -Message ("Container=Pane(scrollviewer-ish) | Name='{0}' | Class='{1}'" -f $container.Current.Name, $container.Current.ClassName)
+        }
+    }
+
+    if (-not $container) {
+        Write-Log -Level 'ERROR' -Message 'Could not find any List/ScrollViewer-like container'
+        return $null
+    }
+
+    $modes = @(
+        'ControlViewChildren',
+        'ControlViewDescendants',
+        'ContentViewWalker',
+        'RawViewWalker',
+        'RawTextNodes'
+    )
+
+    foreach ($mode in $modes) {
+        Write-Log -Level 'STEP' -Message ("Enumeration mode: {0}" -f $mode)
+        try {
+            $candidates = @()
+
+            switch ($mode) {
+                'ControlViewChildren' {
+                    $cts = @(
+                        [System.Windows.Automation.ControlType]::DataItem,
+                        [System.Windows.Automation.ControlType]::ListItem,
+                        [System.Windows.Automation.ControlType]::Custom
+                    )
+                    foreach ($ct in $cts) {
+                        $cond = New-Object System.Windows.Automation.PropertyCondition(
+                            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                            $ct
+                        )
+                        $found = $container.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+                        $ctName = if ($ct.PSObject.Properties['ProgrammaticName']) { $ct.ProgrammaticName } else { $ct.ToString() }
+                        Write-Log -Level 'DEBUG' -Message ("{0} children ({1}): {2}" -f $mode, $ctName, $found.Count)
+                        for ($i=0; $i -lt $found.Count; $i++) { $candidates += $found.Item($i) }
+                    }
+                }
+                'ControlViewDescendants' {
+                    $cts = @(
+                        [System.Windows.Automation.ControlType]::DataItem,
+                        [System.Windows.Automation.ControlType]::ListItem,
+                        [System.Windows.Automation.ControlType]::Custom
+                    )
+                    foreach ($ct in $cts) {
+                        $cond = New-Object System.Windows.Automation.PropertyCondition(
+                            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                            $ct
+                        )
+                        $found = $container.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+                        $ctName = if ($ct.PSObject.Properties['ProgrammaticName']) { $ct.ProgrammaticName } else { $ct.ToString() }
+                        Write-Log -Level 'DEBUG' -Message ("{0} descendants ({1}): {2}" -f $mode, $ctName, $found.Count)
+                        for ($i=0; $i -lt $found.Count; $i++) { $candidates += $found.Item($i) }
+                    }
+                }
+                'ContentViewWalker' {
+                    $walker = [System.Windows.Automation.TreeWalker]::ContentViewWalker
+                    $child = $walker.GetFirstChild($container)
+                    while ($child -ne $null) {
+                        $candidates += $child
+                        $child = $walker.GetNextSibling($child)
+                    }
+                    Write-Log -Level 'DEBUG' -Message ("{0} siblings: {1}" -f $mode, $candidates.Count)
+                }
+                'RawViewWalker' {
+                    $walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+                    $child = $walker.GetFirstChild($container)
+                    while ($child -ne $null) {
+                        $candidates += $child
+                        $child = $walker.GetNextSibling($child)
+                    }
+                    Write-Log -Level 'DEBUG' -Message ("{0} siblings: {1}" -f $mode, $candidates.Count)
+                }
+                'RawTextNodes' {
+                    # If we can't identify rows, at least extract text nodes + rectangles.
+                    $textCond = New-Object System.Windows.Automation.PropertyCondition(
+                        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                        [System.Windows.Automation.ControlType]::Text
+                    )
+                    $texts = $container.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCond)
+                    Write-Log -Level 'DEBUG' -Message ("Text descendants: {0}" -f $texts.Count)
+                    for ($i=0; $i -lt $texts.Count -and $i -lt 200; $i++) {
+                        $t = $texts.Item($i)
+                        $tn = $t.Current.Name
+                        if ($tn) {
+                            Write-Log -Level 'WARN' -Message ("TEXT[{0}] '{1}' Rect={2}" -f $i, $tn, (Get-RectString $t))
+                        }
+                    }
+                    continue
+                }
+            }
+
+            # De-dup by runtime id
+            $uniq = @{}
+            foreach ($c in $candidates) {
+                $rid = ''
+                try { $rid = ($c.GetRuntimeId() -join '.') } catch { $rid = [guid]::NewGuid().ToString() }
+                if (-not $uniq.ContainsKey($rid)) { $uniq[$rid] = $c }
+            }
+            $candidates = @($uniq.Values)
+
+            Write-Log -Level 'DEBUG' -Message ("{0} candidates after de-dup: {1}" -f $mode, $candidates.Count)
+
+            # Log first N candidate summaries
+            for ($i=0; $i -lt $candidates.Count -and $i -lt 60; $i++) {
+                $c = $candidates[$i]
+                $name = ''
+                try { $name = $c.Current.Name } catch {}
+                $ctn = Get-ControlTypeName $c
+                $summary = Get-RowTextSummary $c
+                if ($name -or $summary) {
+                    Write-Log -Level 'DEBUG' -Message ("Cand[{0}] {1} Name='{2}' Text='{3}' Rect={4}" -f $i, $ctn, $name, $summary, (Get-RectString $c))
+                }
+
+                if ($name -match $itemRegex -or $summary -match $itemRegex) {
+                    Write-Log -Level 'OK' -Message ("MATCH in mode {0} at candidate {1}" -f $mode, $i)
+                    return $c
+                }
+            }
+        } catch {
+            Write-Log -Level 'WARN' -Message ("Mode {0} threw: {1}" -f $mode, $_.Exception.Message)
         }
 
-        # Helpful dump: log a compact view of what each candidate row contains.
-        if ($i -lt 200) {
-            $snippet = @()
-            foreach ($t in $texts) {
-                $tn = $t.Current.Name
-                if ($tn) { $snippet += $tn }
-            }
-            if ($name -or $snippet.Count -gt 0) {
-                $sn = ($snippet | Select-Object -Unique | Select-Object -First 6) -join ' | '
-                Write-Log -Level 'DEBUG' -Message ("Row[{0}] Candidate | ElementName='{1}' | Text='{2}'" -f $i, $name, $sn)
-            }
-        }
+        Step-Delay ("enumeration mode: $mode")
     }
 
     return $null
@@ -302,29 +435,76 @@ function Dump-UiaTree {
         $el = $q.Dequeue()
         $count++
 
-        $ct = $el.Current.ControlType.ProgrammaticName
-        $name = $el.Current.Name
-        $cls = $el.Current.ClassName
-        $aid = $el.Current.AutomationId
-        $fw = $el.Current.FrameworkId
-
-        # BoundingRectangle can throw in some cases; guard.
-        $rect = ''
-        try {
-            $r = $el.Current.BoundingRectangle
-            $rect = ("[{0},{1},{2},{3}]" -f [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height)
-        } catch { }
+        $ct = Get-ControlTypeName $el
+        $name = ''
+        $cls = ''
+        $aid = ''
+        $fw = ''
+        try { $name = $el.Current.Name } catch {}
+        try { $cls  = $el.Current.ClassName } catch {}
+        try { $aid  = $el.Current.AutomationId } catch {}
+        try { $fw   = $el.Current.FrameworkId } catch {}
+        $rect = Get-RectString $el
 
         Write-Log -Level 'WARN' -Message ("UIA | {0} | Name='{1}' | Class='{2}' | AId='{3}' | FW='{4}' | Rect={5}" -f $ct, $name, $cls, $aid, $fw, $rect)
 
         # Enqueue children
-        $children = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
-        for ($i=0; $i -lt $children.Count; $i++) {
-            $q.Enqueue($children.Item($i))
+        try {
+            $children = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+            for ($i=0; $i -lt $children.Count; $i++) {
+                $q.Enqueue($children.Item($i))
+            }
+        } catch {
+            # ignore enumeration errors
         }
     }
 
     Write-Log -Level 'WARN' -Message ("UIA DUMP END | ElementsLogged={0} | RemainingQueue={1}" -f $count, $q.Count)
+}
+
+function Dump-UiaRawView {
+    param(
+        [Parameter(Mandatory=$true)]
+        [System.Windows.Automation.AutomationElement]$Root,
+        [int]$Max = 2000
+    )
+
+    Write-Log -Level 'WARN' -Message ("UIA RAWVIEW DUMP START | RootName='{0}' | RootClass='{1}' | Max={2}" -f $Root.Current.Name, $Root.Current.ClassName, $Max)
+
+    $walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+    $q = New-Object System.Collections.Generic.Queue[System.Windows.Automation.AutomationElement]
+    $q.Enqueue($Root)
+    $count = 0
+
+    while ($q.Count -gt 0 -and $count -lt $Max) {
+        $el = $q.Dequeue();
+        $count++
+
+        $ct = Get-ControlTypeName $el
+        $name = ''
+        $cls = ''
+        $aid = ''
+        $fw = ''
+        try { $name = $el.Current.Name } catch {}
+        try { $cls  = $el.Current.ClassName } catch {}
+        try { $aid  = $el.Current.AutomationId } catch {}
+        try { $fw   = $el.Current.FrameworkId } catch {}
+        $rect = Get-RectString $el
+
+        Write-Log -Level 'WARN' -Message ("RAW | {0} | Name='{1}' | Class='{2}' | AId='{3}' | FW='{4}' | Rect={5}" -f $ct, $name, $cls, $aid, $fw, $rect)
+
+        try {
+            $child = $walker.GetFirstChild($el)
+            while ($child -ne $null) {
+                $q.Enqueue($child)
+                $child = $walker.GetNextSibling($child)
+            }
+        } catch {
+            # ignore
+        }
+    }
+
+    Write-Log -Level 'WARN' -Message ("UIA RAWVIEW DUMP END | ElementsLogged={0} | RemainingQueue={1}" -f $count, $q.Count)
 }
 
 # Map abstract behavior to the visible UI strings.
@@ -355,12 +535,15 @@ try {
     Step-Delay 'find window'
 
     Write-Log -Level 'STEP' -Message ("Searching for row matching regex: /{0}/" -f $effectiveMatchRegex)
-    $row = Find-ListItemByRegex -window $win -itemRegex $effectiveMatchRegex
+    $row = Find-RowWithFallback -window $win -itemRegex $effectiveMatchRegex
     if (-not $row) {
         Write-Log -Level 'ERROR' -Message ("No row matched regex: /{0}/" -f $effectiveMatchRegex)
         if ($DumpUiOnFailure) {
-            Write-Log -Level 'WARN' -Message 'DumpUiOnFailure enabled; dumping UIA tree to log for inspection'
+            Write-Log -Level 'WARN' -Message 'DumpUiOnFailure enabled; dumping UIA ControlView tree to log for inspection'
             Dump-UiaTree -Root $win -Max $MaxDumpElements
+            Step-Delay 'after ControlView dump'
+            Write-Log -Level 'WARN' -Message 'DumpUiOnFailure enabled; dumping UIA RawView tree to log for inspection'
+            Dump-UiaRawView -Root $win -Max $MaxDumpElements
         }
         throw "Could not find any row matching regex: $Match"
     }
