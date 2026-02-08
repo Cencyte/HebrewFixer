@@ -28,9 +28,12 @@ Notes
 
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
-    # Regex used to match the row (the visible name column usually contains app name)
+    # Pattern used to match the row (usually includes app name/exe). By default treated as a regex.
     [Parameter(Mandatory=$true)]
     [string]$Match,
+
+    # If set, $Match is treated as a literal substring (it will be regex-escaped internally).
+    [switch]$LiteralMatch,
 
     [Parameter(Mandatory=$true)]
     [ValidateSet('ShowIconAndNotifications','HideIconAndNotifications','OnlyShowNotifications')]
@@ -38,6 +41,12 @@ param(
 
     # Optional: also match the window title; useful if localized OS.
     [string]$WindowNameRegex = 'Notification Area Icons',
+
+    # Dump everything we can see in the window UIA tree when matching fails.
+    [switch]$DumpUiOnFailure = $true,
+
+    # Safety cap to avoid infinite/huge dumps.
+    [int]$MaxDumpElements = 2000,
 
     [int]$TimeoutSeconds = 20
 )
@@ -117,6 +126,7 @@ function Find-FirstDescendant($root, [System.Windows.Automation.Condition]$condi
 }
 
 function Find-ListItemByRegex($window, [string]$itemRegex) {
+    Write-Log -Level 'DEBUG' -Message ("Find-ListItemByRegex | regex=/{0}/" -f $itemRegex)
     # The main table is typically a List control.
     $listCond = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
@@ -130,15 +140,38 @@ function Find-ListItemByRegex($window, [string]$itemRegex) {
 
     Write-Log -Level 'DEBUG' -Message ("List found | Name='{0}' | ClassName='{1}'" -f $list.Current.Name, $list.Current.ClassName)
 
-    $itemCond = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-        [System.Windows.Automation.ControlType]::DataItem
+    # Many builds expose rows as DataItem, but some expose Custom or ListItem.
+    $rowControlTypes = @(
+        [System.Windows.Automation.ControlType]::DataItem,
+        [System.Windows.Automation.ControlType]::ListItem,
+        [System.Windows.Automation.ControlType]::Custom
     )
 
-    $items = $list.FindAll([System.Windows.Automation.TreeScope]::Children, $itemCond)
-    Write-Log -Level 'DEBUG' -Message ("Row count (DataItem children): {0}" -f $items.Count)
+    $items = New-Object System.Collections.Generic.List[System.Windows.Automation.AutomationElement]
+    foreach ($ct in $rowControlTypes) {
+        $cond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            $ct
+        )
+        $found = $list.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+        Write-Log -Level 'DEBUG' -Message ("Row count ({0} children): {1}" -f $ct.ProgrammaticName, $found.Count)
+        for ($i=0; $i -lt $found.Count; $i++) { [void]$items.Add($found.Item($i)) }
+    }
+
+    # De-dup by RuntimeId (best-effort)
+    $unique = @{}
+    foreach ($it in $items) {
+        try {
+            $rid = ($it.GetRuntimeId() -join '.')
+        } catch {
+            $rid = [System.Guid]::NewGuid().ToString()
+        }
+        if (-not $unique.ContainsKey($rid)) { $unique[$rid] = $it }
+    }
+    $items = @($unique.Values)
+    Write-Log -Level 'DEBUG' -Message ("Total unique candidate rows: {0}" -f $items.Count)
     for ($i = 0; $i -lt $items.Count; $i++) {
-        $it = $items.Item($i)
+        $it = $items[$i]
         $name = $it.Current.Name
         if ($name -match $itemRegex) {
             return $it
@@ -153,6 +186,19 @@ function Find-ListItemByRegex($window, [string]$itemRegex) {
         foreach ($t in $texts) {
             if ($t.Current.Name -match $itemRegex) {
                 return $it
+            }
+        }
+
+        # Helpful dump: log a compact view of what each candidate row contains.
+        if ($i -lt 200) {
+            $snippet = @()
+            foreach ($t in $texts) {
+                $tn = $t.Current.Name
+                if ($tn) { $snippet += $tn }
+            }
+            if ($name -or $snippet.Count -gt 0) {
+                $sn = ($snippet | Select-Object -Unique | Select-Object -First 6) -join ' | '
+                Write-Log -Level 'DEBUG' -Message ("Row[{0}] Candidate | ElementName='{1}' | Text='{2}'" -f $i, $name, $sn)
             }
         }
     }
@@ -239,6 +285,48 @@ function Set-ComboValueInRow($row, [string]$targetValueRegex) {
     } catch {}
 }
 
+function Dump-UiaTree {
+    param(
+        [Parameter(Mandatory=$true)]
+        [System.Windows.Automation.AutomationElement]$Root,
+        [int]$Max = 2000
+    )
+
+    Write-Log -Level 'WARN' -Message ("UIA DUMP START | RootName='{0}' | RootClass='{1}' | Max={2}" -f $Root.Current.Name, $Root.Current.ClassName, $Max)
+
+    $q = New-Object System.Collections.Generic.Queue[System.Windows.Automation.AutomationElement]
+    $q.Enqueue($Root)
+    $count = 0
+
+    while ($q.Count -gt 0 -and $count -lt $Max) {
+        $el = $q.Dequeue()
+        $count++
+
+        $ct = $el.Current.ControlType.ProgrammaticName
+        $name = $el.Current.Name
+        $cls = $el.Current.ClassName
+        $aid = $el.Current.AutomationId
+        $fw = $el.Current.FrameworkId
+
+        # BoundingRectangle can throw in some cases; guard.
+        $rect = ''
+        try {
+            $r = $el.Current.BoundingRectangle
+            $rect = ("[{0},{1},{2},{3}]" -f [int]$r.X, [int]$r.Y, [int]$r.Width, [int]$r.Height)
+        } catch { }
+
+        Write-Log -Level 'WARN' -Message ("UIA | {0} | Name='{1}' | Class='{2}' | AId='{3}' | FW='{4}' | Rect={5}" -f $ct, $name, $cls, $aid, $fw, $rect)
+
+        # Enqueue children
+        $children = $el.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+        for ($i=0; $i -lt $children.Count; $i++) {
+            $q.Enqueue($children.Item($i))
+        }
+    }
+
+    Write-Log -Level 'WARN' -Message ("UIA DUMP END | ElementsLogged={0} | RemainingQueue={1}" -f $count, $q.Count)
+}
+
 # Map abstract behavior to the visible UI strings.
 # These exact strings can vary by Windows version and localization;
 # we use regexes instead of exact string equality.
@@ -252,7 +340,8 @@ Add-UIAutomationAssemblies
 
 # Start a new run marker in the rolling log.
 Write-Log -Level 'INFO' -Message ('=' * 78)
-Write-Log -Level 'INFO' -Message ("Run started | Script={0} | Match=/{1}/ | Behavior={2} | WindowNameRegex=/{3}/" -f $MyInvocation.MyCommand.Name, $Match, $Behavior, $WindowNameRegex)
+$effectiveMatchRegex = if ($LiteralMatch) { [regex]::Escape($Match) } else { $Match }
+Write-Log -Level 'INFO' -Message ("Run started | Script={0} | MatchInput='{1}' | LiteralMatch={2} | EffectiveRegex=/{3}/ | Behavior={4} | WindowNameRegex=/{5}/" -f $MyInvocation.MyCommand.Name, $Match, [bool]$LiteralMatch, $effectiveMatchRegex, $Behavior, $WindowNameRegex)
 
 try {
     Write-Log -Level 'STEP' -Message "Launching Notification Area Icons dialog (shell GUID)"
@@ -265,10 +354,14 @@ try {
     Write-Log -Level 'OK' -Message ("Found window | Name='{0}'" -f $win.Current.Name)
     Step-Delay 'find window'
 
-    Write-Log -Level 'STEP' -Message ("Searching for row matching regex: /{0}/" -f $Match)
-    $row = Find-ListItemByRegex -window $win -itemRegex $Match
+    Write-Log -Level 'STEP' -Message ("Searching for row matching regex: /{0}/" -f $effectiveMatchRegex)
+    $row = Find-ListItemByRegex -window $win -itemRegex $effectiveMatchRegex
     if (-not $row) {
-        Write-Log -Level 'ERROR' -Message ("No row matched regex: /{0}/" -f $Match)
+        Write-Log -Level 'ERROR' -Message ("No row matched regex: /{0}/" -f $effectiveMatchRegex)
+        if ($DumpUiOnFailure) {
+            Write-Log -Level 'WARN' -Message 'DumpUiOnFailure enabled; dumping UIA tree to log for inspection'
+            Dump-UiaTree -Root $win -Max $MaxDumpElements
+        }
         throw "Could not find any row matching regex: $Match"
     }
     Write-Log -Level 'OK' -Message ("Matched row | ElementName='{0}'" -f $row.Current.Name)
