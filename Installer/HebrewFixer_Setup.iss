@@ -176,7 +176,7 @@ begin
       // Do not fail install if the entry isn't present yet; log will show it.
       Args :=
         '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing:$false ' +
+        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing 0 ' +
         '-LogPath "' + InstallLogPath() + '"';
 
       LogLine('INSTALL: trayvisible checked; running promotion');

@@ -51,7 +51,8 @@ param(
     [string]$LogPath,
 
     # If true, if no matching key exists yet, we log and exit non-zero (installer can decide what to do)
-    [switch]$FailIfMissing = $true
+    # NOTE: use [bool] (not [switch]) so installers can reliably pass 0/1 without PowerShell switch binding quirks.
+    [bool]$FailIfMissing = $true
 )
 
 Set-StrictMode -Version Latest
