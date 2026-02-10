@@ -80,6 +80,30 @@ begin
   Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug.log');
 end;
 
+function InstallPSLogPath(): String;
+begin
+  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug_ps.log');
+end;
+
+procedure AppendPSLogToMain(Phase: String);
+var
+  S: AnsiString;
+  L: String;
+begin
+  if LoadStringFromFile(InstallPSLogPath(), S) then
+  begin
+    L := GetDateTimeString('yyyy-mm-dd hh:nn:ss.zzz', '-', ':') + ' | ' + Phase + ': begin powershell log dump' + #13#10;
+    SaveStringToFile(InstallLogPath(), L, True);
+    SaveStringToFile(InstallLogPath(), String(S), True);
+    L := GetDateTimeString('yyyy-mm-dd hh:nn:ss.zzz', '-', ':') + ' | ' + Phase + ': end powershell log dump' + #13#10;
+    SaveStringToFile(InstallLogPath(), L, True);
+  end
+  else
+  begin
+    LogLine(Phase + ': no powershell log file found at ' + InstallPSLogPath());
+  end;
+end;
+
 procedure LogLine(Msg: String);
 var
   L: String;
@@ -133,6 +157,7 @@ begin
     // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
     Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     LogLine('UNINSTALL: Exec result=' + IntToStr(ResultCode));
+AppendPSLogToMain('UNINSTALL');
 
     // Best-effort reset marker (key itself is removed by uninsdeletekey).
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
