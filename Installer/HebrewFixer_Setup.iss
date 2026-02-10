@@ -89,6 +89,13 @@ begin
   SaveStringToFile(InstallLogPath(), L, True);
 end;
 
+function CmdWrapPowerShell(PSExe, Args: String): String;
+begin
+  // Robust cmd.exe quoting:
+  // cmd /c ""<PSExe>" <Args> 1>>"<log>" 2>>&1"
+  Result := '/c ""' + PSExe + '" ' + Args + ' 1>>"' + InstallLogPath() + '" 2>>&1"';
+end;
+
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
@@ -124,7 +131,7 @@ begin
     LogLine('UNINSTALL: PSExe=' + PSExe);
     LogLine('UNINSTALL: Args=' + Args);
     // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
-    Exec('cmd.exe', '/c "' + PSExe + ' ' + Args + ' 1>>"' + InstallLogPath() + '" 2>>&1"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     LogLine('UNINSTALL: Exec result=' + IntToStr(ResultCode));
 
     // Best-effort reset marker (key itself is removed by uninsdeletekey).
@@ -176,7 +183,7 @@ begin
       LogLine('INSTALL: PSExe=' + PSExe);
       LogLine('INSTALL: Args=' + Args);
       // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
-      Exec('cmd.exe', '/c "' + PSExe + ' ' + Args + ' 1>>"' + InstallLogPath() + '" 2>>&1"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
       LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
 
       // Record that we applied tray promotion
@@ -197,7 +204,8 @@ begin
         LogLine('INSTALL: trayvisible unchecked but marker=1; running revert');
         LogLine('INSTALL: PSExe=' + PSExe);
         LogLine('INSTALL: Args=' + Args);
-        Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
+        Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
         LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
 
         // Reset marker
