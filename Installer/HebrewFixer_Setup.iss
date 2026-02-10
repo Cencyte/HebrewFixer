@@ -91,24 +91,15 @@ begin
       // ------------------------------------------------------------------
       // Win11 tray icon pinning (zero-GUI approach)
       //
-      // Strategy:
-      // 1) Launch HebrewFixer briefly so Windows creates a NotifyIconSettings entry.
-      // 2) Close it.
-      // 3) Set HKCU:\\Control Panel\\NotifyIconSettings\*\\IsPromoted=1 for HebrewFixer1998.exe
-      //    using the registry-only PowerShell helper.
+      // Installer requirement:
+      // - Do NOT launch HebrewFixer during install (can flash UI / appear on taskbar).
       //
-      // This makes the first "real" user launch appear already pinned.
+      // Instead:
+      // - Apply the HKCU NotifyIconSettings IsPromoted=1 setting if the entry already exists.
+      // - If no entry exists yet, this is non-fatal; the user can launch HebrewFixer once and
+      //   re-run a "Repair" later (or we can add a self-healing check at app startup).
       // ------------------------------------------------------------------
 
-      // 1) Launch briefly (tray-only; no main window expected)
-      Exec(ExePath, '', '', SW_HIDE, ewNoWait, ResultCode);
-      Sleep(1500);
-
-      // 2) Close app immediately (best-effort)
-      Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Sleep(500);
-
-      // 3) Apply registry promotion (silent)
       PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
       PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
 
