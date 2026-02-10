@@ -82,8 +82,13 @@ function Step-Delay([string]$StepName) {
 }
 
 function Add-UIAutomationAssemblies {
+    # Core UIA assemblies
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
+
+    # Some patterns/providers (esp. Legacy IAccessible) can live here on certain systems.
+    # If absent, we continue without it.
+    try { Add-Type -AssemblyName UIAutomationClientsideProviders } catch {}
 }
 
 function Wait-ForWindow([string]$nameRegex, [TimeSpan]$timeout) {
@@ -220,15 +225,34 @@ function Find-AncestorWithExpandCollapse($el) {
     return $null
 }
 
+function Get-LegacyIAccessiblePatternAutomationPattern {
+    # Avoid hard type reference: some environments don't expose LegacyIAccessiblePattern.
+    try {
+        $t = [Type]::GetType('System.Windows.Automation.LegacyIAccessiblePattern, UIAutomationClient', $false)
+        if (-not $t) {
+            $t = [Type]::GetType('System.Windows.Automation.LegacyIAccessiblePattern, UIAutomationClientsideProviders', $false)
+        }
+        if (-not $t) { return $null }
+
+        $prop = $t.GetProperty('Pattern')
+        if (-not $prop) { return $null }
+        return $prop.GetValue($null, $null)
+    } catch {
+        return $null
+    }
+}
+
 function Get-SupportedPatternNames($el) {
     $names = @()
     $patterns = @(
         [System.Windows.Automation.InvokePattern]::Pattern,
         [System.Windows.Automation.TogglePattern]::Pattern,
         [System.Windows.Automation.ExpandCollapsePattern]::Pattern,
-        [System.Windows.Automation.SelectionItemPattern]::Pattern,
-        [System.Windows.Automation.LegacyIAccessiblePattern]::Pattern
+        [System.Windows.Automation.SelectionItemPattern]::Pattern
     )
+
+    $legacyPat = Get-LegacyIAccessiblePatternAutomationPattern
+    if ($legacyPat) { $patterns += $legacyPat }
 
     foreach ($p in $patterns) {
         try {
@@ -300,16 +324,25 @@ function Click-UiaElement($el, [string]$purpose) {
         Write-Log -Level 'DEBUG' -Message ("SelectionItemPattern not available/failed: {0}" -f $_.Exception.Message)
     }
 
-    # 5) Legacy IAccessible DoDefaultAction
+    # 5) Legacy IAccessible DoDefaultAction (optional; not always available)
     try {
-        $la = $el.GetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern)
-        if ($la) {
-            $la.DoDefaultAction()
-            Write-Log -Level 'OK' -Message 'Activated via LegacyIAccessiblePattern.DoDefaultAction()'
-            return $true
+        $legacyPat = Get-LegacyIAccessiblePatternAutomationPattern
+        if ($legacyPat) {
+            $la = $el.GetCurrentPattern($legacyPat)
+            if ($la) {
+                # Use reflection to call DoDefaultAction if present
+                $m = $la.GetType().GetMethod('DoDefaultAction')
+                if ($m) {
+                    $m.Invoke($la, $null) | Out-Null
+                    Write-Log -Level 'OK' -Message 'Activated via Legacy IAccessible DoDefaultAction()'
+                    return $true
+                }
+            }
+        } else {
+            Write-Log -Level 'DEBUG' -Message 'Legacy IAccessible pattern not available in this environment'
         }
     } catch {
-        Write-Log -Level 'DEBUG' -Message ("LegacyIAccessiblePattern not available/failed: {0}" -f $_.Exception.Message)
+        Write-Log -Level 'DEBUG' -Message ("Legacy IAccessible activation failed: {0}" -f $_.Exception.Message)
     }
 
     # 6) Last resort: clickable point -> mouse click (still programmatic; no hardcoded coords)
@@ -395,19 +428,15 @@ function Expand-SectionByLabel($window, [string]$labelRegex) {
 
             if (($bc -match 'ExpanderToggleButton') -or ($bn -match 'Show\s+more\s+settings')) {
                 Write-Log -Level 'OK' -Message ("Found expander button candidate | Name='{0}' | Class='{1}' | Rect={2}" -f $bn, $bc, (Get-RectString $b))
-                try {
-                    if (Click-UiaElement -el $b -purpose 'Expand Other system tray icons') {
-                        Write-Log -Level 'OK' -Message 'Activated expander button'
-                        return $group
-                    }
-                } catch {
-                    Write-Log -Level 'WARN' -Message ("Expander candidate activation failed: {0}" -f $_.Exception.Message)
+                if (Click-UiaElement -el $b -purpose 'Expand Other system tray icons') {
+                    Write-Log -Level 'OK' -Message 'Activated expander button'
+                    return $group
                 }
             }
         }
     }
 
-    Write-Log -Level 'ERROR' -Message 'Unable to expand section via ExpandCollapse or Invoke expander button'
+    Write-Log -Level 'ERROR' -Message 'Unable to expand section via ExpandCollapse or activation fallback on expander button'
     return $null
 }
 
