@@ -125,7 +125,7 @@ begin
     PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false ' +
+      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
       '-LogPath "' + InstallLogPath() + '"';
     LogLine('UNINSTALL: running tray revert');
     LogLine('UNINSTALL: PSExe=' + PSExe);
@@ -198,7 +198,7 @@ begin
         PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
         Args :=
           '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-          '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false ' +
+          '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
           '-LogPath "' + InstallLogPath() + '"';
 
         LogLine('INSTALL: trayvisible unchecked but marker=1; running revert');
