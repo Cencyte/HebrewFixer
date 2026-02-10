@@ -43,7 +43,7 @@ Name: "launchapp"; Description: "Launch HebrewFixer now"; GroupDescription: "Aft
 Source: "..\bin\HebrewFixer.exe"; DestDir: "{app}"; DestName: "HebrewFixer1998.exe"; Flags: ignoreversion
 
 ; Win11 tray icon promotion helper (registry-only, no GUI)
-Source: "..\\Tests\\Win11\\Set-NotificationAreaIconBehavior-Win11-3.ps1"; DestDir: "{app}\\InstallerTools"; DestName: "Set-NotificationAreaIconBehavior-Win11-3.ps1"; Flags: ignoreversion
+Source: "..\\Tests\\Win11\\Set-NotificationAreaIconBehavior-Win11-3.ps1"; DestDir: "{app}\\InstallerTools"; DestName: "Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1"; Flags: ignoreversion overwritereadonly
 
 ; Icons for tray (ON and OFF states)
 Source: "..\Icon\ICOs\hebrew_fixer_affinity_on.ico"; DestDir: "{app}"; DestName: "hebrew_fixer_on.ico"; Flags: ignoreversion

@@ -93,7 +93,7 @@ $effective = Get-EffectiveRegex -pattern $Match -literal ([bool]$LiteralMatch)
 $root = 'HKCU:\Control Panel\NotifyIconSettings'
 
 Write-Log -Level 'INFO' -Message ('=' * 78)
-Write-Log -Level 'INFO' -Message ("SCRIPT START | Pid={0} | User={1} | Script={2}" -f $PID, $env:USERNAME, $MyInvocation.MyCommand.Name)
+Write-Log -Level 'INFO' -Message ("SCRIPT START | VERSION=WIN11_3_INT_FAILIFMISSING | Pid={0} | User={1} | Script={2}" -f $PID, $env:USERNAME, $MyInvocation.MyCommand.Name)
 $failIfMissingBool = ($FailIfMissing -ne 0)
 Write-Log -Level 'INFO' -Message ("Run started | MatchInput='{0}' | LiteralMatch={1} | EffectiveRegex=/{2}/ | DesiredSetting={3} | FailIfMissing={4} | LogPath='{5}'" -f $Match, [bool]$LiteralMatch, $effective, $DesiredSetting, $FailIfMissing, $Global:LogPath)
 
