@@ -51,8 +51,9 @@ param(
     [string]$LogPath,
 
     # If true, if no matching key exists yet, we log and exit non-zero (installer can decide what to do)
-    # NOTE: use [bool] (not [switch]) so installers can reliably pass 0/1 without PowerShell switch binding quirks.
-    [bool]$FailIfMissing = $true
+    # Installer-friendly: accept 0/1 as INT because PowerShell binds unquoted CLI tokens as strings.
+    [ValidateSet(0,1)]
+    [int]$FailIfMissing = 1
 )
 
 Set-StrictMode -Version Latest
@@ -93,7 +94,8 @@ $root = 'HKCU:\Control Panel\NotifyIconSettings'
 
 Write-Log -Level 'INFO' -Message ('=' * 78)
 Write-Log -Level 'INFO' -Message ("SCRIPT START | Pid={0} | User={1} | Script={2}" -f $PID, $env:USERNAME, $MyInvocation.MyCommand.Name)
-Write-Log -Level 'INFO' -Message ("Run started | MatchInput='{0}' | LiteralMatch={1} | EffectiveRegex=/{2}/ | DesiredSetting={3} | LogPath='{4}'" -f $Match, [bool]$LiteralMatch, $effective, $DesiredSetting, $Global:LogPath)
+$failIfMissingBool = ($FailIfMissing -ne 0)
+Write-Log -Level 'INFO' -Message ("Run started | MatchInput='{0}' | LiteralMatch={1} | EffectiveRegex=/{2}/ | DesiredSetting={3} | FailIfMissing={4} | LogPath='{5}'" -f $Match, [bool]$LiteralMatch, $effective, $DesiredSetting, $FailIfMissing, $Global:LogPath)
 
 try {
     if (-not (Test-Path -LiteralPath $root)) {
@@ -155,7 +157,7 @@ try {
 
     if ($matchResults.Count -eq 0) {
         $msg = "No NotifyIconSettings entries matched /$effective/. The app may not have registered a tray icon yet."
-        if ($FailIfMissing) {
+        if ($failIfMissingBool) {
             Write-Log -Level 'ERROR' -Message $msg
             throw "MissingEntry: $msg"
         } else {
