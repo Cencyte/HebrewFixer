@@ -115,9 +115,10 @@ function Start-Win11TrayIconsSettings {
     Start-Process 'explorer.exe' 'ms-settings:taskbar'
 }
 
-function Get-EffectiveRegex([string]$input, [bool]$literal) {
-    if ($literal) { return [regex]::Escape($input) }
-    return $input
+function Get-EffectiveRegex([string]$pattern, [bool]$literal) {
+    # NOTE: do not name the parameter $input (reserved automatic variable in PowerShell)
+    if ($literal) { return [regex]::Escape($pattern) }
+    return $pattern
 }
 
 function Get-ControlTypeName($el) {
@@ -224,23 +225,73 @@ function Expand-SectionByLabel($window, [string]$labelRegex) {
     $label = Find-TextElementByRegex -root $window -regex $labelRegex
     if (-not $label) { return $null }
 
+    # Strategy 1: ExpandCollapsePattern on an ancestor
     Write-Log -Level 'STEP' -Message 'Searching for ancestor with ExpandCollapsePattern'
     $section = Find-AncestorWithExpandCollapse -el $label
-    if (-not $section) {
-        Write-Log -Level 'WARN' -Message 'No ExpandCollapse ancestor found for label (UI may use a different control type)'
-        return $null
+    if ($section) {
+        try {
+            $ec = $section.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+            Write-Log -Level 'OK' -Message ("Section container found (ExpandCollapse) | Ct={0} | Name='{1}' | Rect={2}" -f (Get-ControlTypeName $section), $section.Current.Name, (Get-RectString $section))
+            $ec.Expand()
+            Write-Log -Level 'OK' -Message 'Section expanded (ExpandCollapsePattern)'
+            return $section
+        } catch {
+            Write-Log -Level 'WARN' -Message ("ExpandCollapse expand failed; will try Invoke fallback: {0}" -f $_.Exception.Message)
+        }
+    } else {
+        Write-Log -Level 'WARN' -Message 'No ExpandCollapse ancestor found for label (expected on some builds)'
     }
 
-    try {
-        $ec = $section.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
-        Write-Log -Level 'OK' -Message ("Section container found | Ct={0} | Name='{1}' | Rect={2}" -f (Get-ControlTypeName $section), $section.Current.Name, (Get-RectString $section))
-        $ec.Expand()
-        Write-Log -Level 'OK' -Message 'Section expanded'
-        return $section
-    } catch {
-        Write-Log -Level 'ERROR' -Message ("Failed to expand section: {0}" -f $_.Exception.Message)
-        return $null
+    # Strategy 2: Invokable expander button (per your UIA dump: Button Name='Show more settings', Class='ExpanderToggleButton')
+    Write-Log -Level 'STEP' -Message 'Searching for invokable ExpanderToggleButton near label'
+
+    # Find nearest ancestor group (often NamedContainerAutomationPeer) then search within it.
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+    $group = $label
+    for ($depth=0; $depth -lt 12 -and $group -ne $null; $depth++) {
+        try { $parent = $walker.GetParent($group) } catch { $parent = $null }
+        if (-not $parent) { break }
+        $group = $parent
+        try {
+            $ct = $group.Current.ControlType
+            # Stop when we reach a named group container.
+            if ($ct -eq [System.Windows.Automation.ControlType]::Group -and $group.Current.Name) { break }
+        } catch {}
     }
+
+    if ($group) {
+        Write-Log -Level 'DEBUG' -Message ("Nearest group container | Ct={0} | Name='{1}' | Class='{2}'" -f (Get-ControlTypeName $group), $group.Current.Name, $group.Current.ClassName)
+
+        $btnCond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            [System.Windows.Automation.ControlType]::Button
+        )
+        $buttons = $group.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond)
+        for ($i=0; $i -lt $buttons.Count; $i++) {
+            $b = $buttons.Item($i)
+            $bn = ''
+            $bc = ''
+            try { $bn = $b.Current.Name } catch {}
+            try { $bc = $b.Current.ClassName } catch {}
+
+            if (($bc -match 'ExpanderToggleButton') -or ($bn -match 'Show\s+more\s+settings')) {
+                Write-Log -Level 'OK' -Message ("Found expander button candidate | Name='{0}' | Class='{1}' | Rect={2}" -f $bn, $bc, (Get-RectString $b))
+                try {
+                    $inv = $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+                    if ($inv) {
+                        $inv.Invoke()
+                        Write-Log -Level 'OK' -Message 'Invoked expander button (InvokePattern)'
+                        return $group
+                    }
+                } catch {
+                    Write-Log -Level 'WARN' -Message ("Expander candidate exists but InvokePattern failed: {0}" -f $_.Exception.Message)
+                }
+            }
+        }
+    }
+
+    Write-Log -Level 'ERROR' -Message 'Unable to expand section via ExpandCollapse or Invoke expander button'
+    return $null
 }
 
 function Find-ToggleNearText($window, [System.Windows.Automation.AutomationElement]$textEl) {
@@ -311,7 +362,7 @@ function Set-ToggleState($toggleButton, [string]$desiredOnOff) {
 
 Add-UIAutomationAssemblies
 
-$effectiveMatchRegex = Get-EffectiveRegex -input $Match -literal ([bool]$LiteralMatch)
+$effectiveMatchRegex = Get-EffectiveRegex -pattern $Match -literal ([bool]$LiteralMatch)
 
 Write-Log -Level 'INFO' -Message ('=' * 78)
 Write-Log -Level 'INFO' -Message ("Run started | Script={0} | MatchInput='{1}' | LiteralMatch={2} | EffectiveRegex=/{3}/ | DesiredState={4}" -f $MyInvocation.MyCommand.Name, $Match, [bool]$LiteralMatch, $effectiveMatchRegex, $DesiredState)
