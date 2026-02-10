@@ -117,7 +117,7 @@ function CmdWrapPowerShell(PSExe, Args: String): String;
 begin
   // Robust cmd.exe quoting:
   // cmd /c ""<PSExe>" <Args> 1>>"<log>" 2>>&1"
-  Result := '/c ""' + PSExe + '" ' + Args + ' 1>>"' + InstallLogPath() + '" 2>>&1"';
+  Result := '/c ""' + PSExe + '" ' + Args + ' 1>>"' + InstallPSLogPath() + '" 2>>&1"';
 end;
 
 function InitializeSetup(): Boolean;
@@ -210,6 +210,7 @@ begin
       // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
       Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
       LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
+      AppendPSLogToMain('INSTALL');
 
       // Record that we applied tray promotion
       RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 1);
@@ -232,6 +233,7 @@ begin
         // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
         Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
         LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
+        AppendPSLogToMain('INSTALL');
 
         // Reset marker
         RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
