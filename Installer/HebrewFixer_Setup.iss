@@ -123,7 +123,8 @@ begin
     LogLine('UNINSTALL: running tray revert');
     LogLine('UNINSTALL: PSExe=' + PSExe);
     LogLine('UNINSTALL: Args=' + Args);
-    Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
+    Exec('cmd.exe', '/c "' + PSExe + ' ' + Args + ' 1>>"' + InstallLogPath() + '" 2>>&1"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     LogLine('UNINSTALL: Exec result=' + IntToStr(ResultCode));
 
     // Best-effort reset marker (key itself is removed by uninsdeletekey).
@@ -174,7 +175,8 @@ begin
       LogLine('INSTALL: trayvisible checked; running promotion');
       LogLine('INSTALL: PSExe=' + PSExe);
       LogLine('INSTALL: Args=' + Args);
-      Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
+      Exec('cmd.exe', '/c "' + PSExe + ' ' + Args + ' 1>>"' + InstallLogPath() + '" 2>>&1"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
       LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
 
       // Record that we applied tray promotion
