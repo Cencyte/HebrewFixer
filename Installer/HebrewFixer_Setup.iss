@@ -51,7 +51,11 @@ Source: "..\Icon\ICOs\hebrew_fixer_affinity_off.ico"; DestDir: "{app}"; DestName
 
 [Registry]
 ; Marker used to know whether THIS installer applied tray promotion, so we can safely revert.
+; On uninstall, we delete the whole HKCU\Software\HebrewFixer key (see entry below).
 Root: HKCU; Subkey: "Software\HebrewFixer"; ValueType: dword; ValueName: "TrayVisibleApplied"; ValueData: "0"; Flags: uninsdeletevalue
+
+; Ensure no installer marker remains after uninstall.
+Root: HKCU; Subkey: "Software\HebrewFixer"; Flags: uninsdeletekey
 
 [Icons]
 ; Start Menu entries (optional)
