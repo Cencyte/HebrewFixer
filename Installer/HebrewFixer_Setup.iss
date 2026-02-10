@@ -152,7 +152,7 @@ begin
     else
     begin
       // If user UNchecked trayvisible but we had previously applied it, revert to default (IsPromoted=0)
-      if RegQueryDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', ResultCode) and (ResultCode = 1) then
+      if RegQueryDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', Marker) and (Marker = 1) then
       begin
         PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
         PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
