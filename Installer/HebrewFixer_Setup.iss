@@ -93,7 +93,7 @@ function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
 begin
-  LogLine('InitializeSetup: start');
+  LogLine('InitializeSetup: start | BUILD=DEBUG_LOG_V2');
   // Kill any running HebrewFixer processes before installation
   Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   LogLine('InitializeSetup: taskkill result=' + IntToStr(ResultCode));
@@ -108,8 +108,10 @@ var
   Args: String;
   Marker: Cardinal;
 begin
+  LogLine('CurUninstallStepChanged: step=' + IntToStr(Ord(CurUninstallStep)));
   if CurUninstallStep = usUninstall then
   begin
+    LogLine('UNINSTALL: entered');
     // On uninstall, revert tray promotion unconditionally (uninstall should leave no pinned state behind).
     // We still keep the marker for install-time decisions, but uninstall always tries to revert.
     PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
@@ -138,8 +140,11 @@ var
   Args: String;
   Marker: Cardinal;
 begin
+  LogLine('CurStepChanged: step=' + IntToStr(Ord(CurStep)));
   if CurStep = ssPostInstall then
   begin
+    LogLine('POSTINSTALL: entered');
+    LogLine('POSTINSTALL: trayvisible=' + IntToStr(Ord(WizardIsTaskSelected('trayvisible'))) + ', launchapp=' + IntToStr(Ord(WizardIsTaskSelected('launchapp'))) + ', startup=' + IntToStr(Ord(WizardIsTaskSelected('startup'))));
     ExePath := ExpandConstant('{app}\\HebrewFixer1998.exe');
 
     // Apply Win11 tray icon pinning ONLY if user selected it
