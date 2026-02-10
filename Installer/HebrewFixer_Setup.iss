@@ -93,18 +93,17 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    // If we previously applied tray promotion, revert it on uninstall.
-    if RegQueryDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', Marker) and (Marker = 1) then
-    begin
-      PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-      PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
-      Args :=
-        '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false';
-      Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    // On uninstall, revert tray promotion unconditionally (uninstall should leave no pinned state behind).
+    // We still keep the marker for install-time decisions, but uninstall always tries to revert.
+    PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
+    Args :=
+      '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
+      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false';
+    Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-      RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
-    end;
+    // Best-effort reset marker (key itself is removed by uninsdeletekey).
+    RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
   end;
 end;
 

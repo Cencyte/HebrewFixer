@@ -104,32 +104,48 @@ try {
 
     foreach ($k in $keys) {
         $path = $k.PSPath
-        $exec = $null
         $cur = $null
+        $matchedOn = @()
+        $allStrings = @()
+        $exec = $null
 
         try {
             $p = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction Stop
             $exec = $p.ExecutablePath
             $cur = $p.IsPromoted
+
+            # Collect ALL string-valued properties for robust matching (ExecutablePath is sometimes absent).
+            foreach ($prop in $p.PSObject.Properties) {
+                try {
+                    $val = $prop.Value
+                    if ($val -is [string] -and $val) {
+                        $allStrings += ("{0}={1}" -f $prop.Name, $val)
+                        if ([regex]::IsMatch($val, $effective)) {
+                            $matchedOn += $prop.Name
+                        }
+                    }
+                } catch {}
+            }
         } catch {
             continue
         }
 
-        if (-not $exec) { continue }
-
-        if ([regex]::IsMatch($exec, $effective)) {
+        if ($matchedOn.Count -gt 0) {
             $matchResults += [pscustomobject]@{
                 KeyPath = $k.PSPath
                 SubKey  = $k.PSChildName
                 ExecutablePath = $exec
                 IsPromoted = $cur
+                MatchedOn = ($matchedOn -join ',')
+                StringsSample = ($allStrings | Select-Object -First 8) -join ' | '
             }
         }
     }
 
     Write-Log -Level 'INFO' -Message ("Matching entries: {0}" -f $matchResults.Count)
     foreach ($m in $matchResults | Select-Object -First 50) {
-        Write-Log -Level 'INFO' -Message ("Match | SubKey={0} | IsPromoted={1} | ExecutablePath={2}" -f $m.SubKey, $m.IsPromoted, $m.ExecutablePath)
+        Write-Log -Level 'INFO' -Message ("Match | SubKey={0} | IsPromoted={1} | MatchedOn={2} | ExecutablePath={3}" -f $m.SubKey, $m.IsPromoted, $m.MatchedOn, $m.ExecutablePath)
+        Write-Log -Level 'DEBUG' -Message ("  StringsSample: {0}" -f $m.StringsSample)
     }
 
     if ($matchResults.Count -eq 0) {
