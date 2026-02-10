@@ -47,6 +47,9 @@ param(
     [ValidateSet(0,1)]
     [int]$DesiredSetting,
 
+    # Optional override to append logs to a shared installer debug log.
+    [string]$LogPath,
+
     # If true, if no matching key exists yet, we log and exit non-zero (installer can decide what to do)
     [switch]$FailIfMissing = $true
 )
@@ -54,7 +57,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$Global:LogPath = Join-Path -Path $PSScriptRoot -ChildPath 'notification_area_icons_transparent-Win11-3.log'
+$Global:LogPath = if ($LogPath) { $LogPath } else { Join-Path -Path $PSScriptRoot -ChildPath 'notification_area_icons_transparent-Win11-3.log' }
 
 function Write-Log {
     param(
@@ -88,7 +91,8 @@ $effective = Get-EffectiveRegex -pattern $Match -literal ([bool]$LiteralMatch)
 $root = 'HKCU:\Control Panel\NotifyIconSettings'
 
 Write-Log -Level 'INFO' -Message ('=' * 78)
-Write-Log -Level 'INFO' -Message ("Run started | Script={0} | MatchInput='{1}' | LiteralMatch={2} | EffectiveRegex=/{3}/ | DesiredSetting={4}" -f $MyInvocation.MyCommand.Name, $Match, [bool]$LiteralMatch, $effective, $DesiredSetting)
+Write-Log -Level 'INFO' -Message ("SCRIPT START | Pid={0} | User={1} | Script={2}" -f $PID, $env:USERNAME, $MyInvocation.MyCommand.Name)
+Write-Log -Level 'INFO' -Message ("Run started | MatchInput='{0}' | LiteralMatch={1} | EffectiveRegex=/{2}/ | DesiredSetting={3} | LogPath='{4}'" -f $Match, [bool]$LiteralMatch, $effective, $DesiredSetting, $Global:LogPath)
 
 try {
     if (-not (Test-Path -LiteralPath $root)) {
@@ -171,8 +175,10 @@ try {
     }
 
     Write-Log -Level 'OK' -Message 'Run completed'
+    Write-Log -Level 'INFO' -Message ("SCRIPT END | Success=True")
 }
 catch {
+    Write-Log -Level 'INFO' -Message ("SCRIPT END | Success=False")
     Write-Log -Level 'ERROR' -Message ("Exception: {0}" -f $_.Exception.Message)
     if ($_.ScriptStackTrace) { Write-Log -Level 'ERROR' -Message ("ScriptStackTrace: {0}" -f $_.ScriptStackTrace) }
     throw

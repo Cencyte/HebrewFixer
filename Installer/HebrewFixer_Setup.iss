@@ -74,12 +74,29 @@ Type: filesandordirs; Name: "{app}\InstallerTools"
 Type: filesandordirs; Name: "{app}"
 
 [Code]
+
+function InstallLogPath(): String;
+begin
+  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug.log');
+end;
+
+procedure LogLine(Msg: String);
+var
+  L: String;
+begin
+  ForceDirectories(ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs'));
+  L := GetDateTimeString('yyyy-mm-dd hh:nn:ss.zzz', '-', ':') + ' | ' + Msg + #13#10;
+  SaveStringToFile(InstallLogPath(), L, True);
+end;
+
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
 begin
+  LogLine('InitializeSetup: start');
   // Kill any running HebrewFixer processes before installation
   Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  LogLine('InitializeSetup: taskkill result=' + IntToStr(ResultCode));
   Result := True;
 end;
 
@@ -99,8 +116,13 @@ begin
     PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false';
+      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false ' +
+      '-LogPath "' + InstallLogPath() + '"';
+    LogLine('UNINSTALL: running tray revert');
+    LogLine('UNINSTALL: PSExe=' + PSExe);
+    LogLine('UNINSTALL: Args=' + Args);
     Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    LogLine('UNINSTALL: Exec result=' + IntToStr(ResultCode));
 
     // Best-effort reset marker (key itself is removed by uninsdeletekey).
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
@@ -141,9 +163,14 @@ begin
       // Do not fail install if the entry isn't present yet; log will show it.
       Args :=
         '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing:$false';
+        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing:$false ' +
+        '-LogPath "' + InstallLogPath() + '"';
 
+      LogLine('INSTALL: trayvisible checked; running promotion');
+      LogLine('INSTALL: PSExe=' + PSExe);
+      LogLine('INSTALL: Args=' + Args);
       Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
 
       // Record that we applied tray promotion
       RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 1);
@@ -157,8 +184,14 @@ begin
         PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
         Args :=
           '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-          '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false';
+          '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing:$false ' +
+          '-LogPath "' + InstallLogPath() + '"';
+
+        LogLine('INSTALL: trayvisible unchecked but marker=1; running revert');
+        LogLine('INSTALL: PSExe=' + PSExe);
+        LogLine('INSTALL: Args=' + Args);
         Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
 
         // Reset marker
         RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
