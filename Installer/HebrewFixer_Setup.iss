@@ -85,7 +85,7 @@ begin
   Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug_ps.log');
 end;
 
-procedure LogLine(Msg: String);
+procedure LogLine(Msg: String); forward;
 
 procedure AppendPSLogToMain(Phase: String);
 var
