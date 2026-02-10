@@ -195,7 +195,7 @@ begin
       if RegQueryDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', Marker) and (Marker = 1) then
       begin
         PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-        PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
+        PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1');
         Args :=
           '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
           '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
