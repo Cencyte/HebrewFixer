@@ -99,7 +99,8 @@ try {
     $keys = Get-ChildItem -LiteralPath $root -ErrorAction Stop
     Write-Log -Level 'DEBUG' -Message ("Subkey count: {0}" -f $keys.Count)
 
-    $matches = @()
+    # IMPORTANT: do not use variable name $matches/$Matches (PowerShell automatic hashtable from -match).
+    $matchResults = @()
 
     foreach ($k in $keys) {
         $path = $k.PSPath
@@ -116,8 +117,8 @@ try {
 
         if (-not $exec) { continue }
 
-        if ($exec -match $effective) {
-            $matches += [pscustomobject]@{
+        if ([regex]::IsMatch($exec, $effective)) {
+            $matchResults += [pscustomobject]@{
                 KeyPath = $k.PSPath
                 SubKey  = $k.PSChildName
                 ExecutablePath = $exec
@@ -126,12 +127,12 @@ try {
         }
     }
 
-    Write-Log -Level 'INFO' -Message ("Matching entries: {0}" -f $matches.Count)
-    foreach ($m in $matches | Select-Object -First 50) {
+    Write-Log -Level 'INFO' -Message ("Matching entries: {0}" -f $matchResults.Count)
+    foreach ($m in $matchResults | Select-Object -First 50) {
         Write-Log -Level 'INFO' -Message ("Match | SubKey={0} | IsPromoted={1} | ExecutablePath={2}" -f $m.SubKey, $m.IsPromoted, $m.ExecutablePath)
     }
 
-    if ($matches.Count -eq 0) {
+    if ($matchResults.Count -eq 0) {
         $msg = "No NotifyIconSettings entries matched /$effective/. The app may not have registered a tray icon yet."
         if ($FailIfMissing) {
             Write-Log -Level 'ERROR' -Message $msg
@@ -142,7 +143,7 @@ try {
         }
     }
 
-    foreach ($m in $matches) {
+    foreach ($m in $matchResults) {
         if ($PSCmdlet.ShouldProcess($m.KeyPath, "Set IsPromoted=$DesiredSetting")) {
             $before = $m.IsPromoted
             Set-ItemProperty -LiteralPath $m.KeyPath -Name 'IsPromoted' -Type DWord -Value $DesiredSetting -ErrorAction Stop
