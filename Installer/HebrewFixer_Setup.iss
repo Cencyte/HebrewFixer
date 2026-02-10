@@ -150,7 +150,7 @@ begin
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
       '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
-      '-LogPath "' + InstallLogPath() + '"';
+      '-LogPath "' + InstallPSLogPath() + '"';
     LogLine('UNINSTALL: running tray revert');
     LogLine('UNINSTALL: PSExe=' + PSExe);
     LogLine('UNINSTALL: Args=' + Args);
@@ -202,7 +202,7 @@ begin
       Args :=
         '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
         '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing 0 ' +
-        '-LogPath "' + InstallLogPath() + '"';
+        '-LogPath "' + InstallPSLogPath() + '"';
 
       LogLine('INSTALL: trayvisible checked; running promotion');
       LogLine('INSTALL: PSExe=' + PSExe);
@@ -225,7 +225,7 @@ begin
         Args :=
           '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
           '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
-          '-LogPath "' + InstallLogPath() + '"';
+          '-LogPath "' + InstallPSLogPath() + '"';
 
         LogLine('INSTALL: trayvisible unchecked but marker=1; running revert');
         LogLine('INSTALL: PSExe=' + PSExe);
