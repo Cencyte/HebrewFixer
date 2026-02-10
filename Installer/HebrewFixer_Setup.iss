@@ -145,6 +145,11 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     LogLine('UNINSTALL: entered');
+
+    // Ensure app is not running; otherwise uninstaller may fail to remove files/dirs.
+    Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    LogLine('UNINSTALL: taskkill HebrewFixer1998.exe result=' + IntToStr(ResultCode));
+
     // On uninstall, revert tray promotion unconditionally (uninstall should leave no pinned state behind).
     // We still keep the marker for install-time decisions, but uninstall always tries to revert.
     PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
