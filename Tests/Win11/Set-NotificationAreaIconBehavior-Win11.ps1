@@ -440,53 +440,66 @@ function Expand-SectionByLabel($window, [string]$labelRegex) {
     return $null
 }
 
-function Find-ToggleNearText($window, [System.Windows.Automation.AutomationElement]$textEl) {
-    # Win11 toggle switches often show up as ControlType.Button with TogglePattern.
-    # Strategy: locate a nearby TogglePattern element within the same Y band.
-    $targetRect = $textEl.Current.BoundingRectangle
-    $yMid = $targetRect.Y + ($targetRect.Height / 2.0)
+function Find-AppGroupByRegex($window, [string]$regex) {
+    # In the expanded list, each app entry appears as a Group (NamedContainerAutomationPeer)
+    # with Name = app name (e.g. "HebrewFixer1998.exe") and AutomationId ending with _EntityItem.
+    $grpCond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Group
+    )
 
+    $groups = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $grpCond)
+    Write-Log -Level 'DEBUG' -Message ("Groups found: {0} (searching Name match /{1}/)" -f $groups.Count, $regex)
+
+    for ($i=0; $i -lt $groups.Count; $i++) {
+        $g = $groups.Item($i)
+        $gn = ''
+        $ga = ''
+        try { $gn = $g.Current.Name } catch {}
+        try { $ga = $g.Current.AutomationId } catch {}
+
+        if ($gn -and ($gn -match $regex)) {
+            Write-Log -Level 'OK' -Message ("Matched app group | Name='{0}' | AId='{1}' | Class='{2}'" -f $gn, $ga, $g.Current.ClassName)
+            return $g
+        }
+    }
+
+    return $null
+}
+
+function Find-ToggleInAppGroup($appGroup) {
+    # Inside the app group, the toggle is a Button with ClassName='ToggleSwitch'.
+    # It also has a stable AutomationId derived from the group: <...>_ToggleSwitch.
     $btnCond = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::Button
     )
 
-    $buttons = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond)
-    Write-Log -Level 'DEBUG' -Message ("Buttons found: {0} (searching for TogglePattern near matched text)" -f $buttons.Count)
+    $buttons = $appGroup.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond)
+    Write-Log -Level 'DEBUG' -Message ("Buttons in app group: {0}" -f $buttons.Count)
 
     $best = $null
-    $bestScore = [double]::PositiveInfinity
-
     for ($i=0; $i -lt $buttons.Count; $i++) {
         $b = $buttons.Item($i)
-        # Must support TogglePattern
-        try {
-            $tp = $b.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
-            if (-not $tp) { continue }
-        } catch { continue }
+        $cls = ''
+        $aid = ''
+        try { $cls = $b.Current.ClassName } catch {}
+        try { $aid = $b.Current.AutomationId } catch {}
 
-        $r = $b.Current.BoundingRectangle
-        if ($r.Width -le 0 -or $r.Height -le 0) { continue }
-
-        $byMid = $r.Y + ($r.Height / 2.0)
-        $dy = [math]::Abs($byMid - $yMid)
-
-        # Require roughly same row band
-        if ($dy -gt 25) { continue }
-
-        # Prefer toggles to the right of the text
-        $dx = $r.X - $targetRect.X
-        if ($dx -lt 0) { $dx = 99999 }
-
-        $score = ($dy * 10.0) + $dx
-        if ($score -lt $bestScore) {
-            $bestScore = $score
-            $best = $b
+        if ($cls -match 'ToggleSwitch' -or $aid -match '_ToggleSwitch$') {
+            # must support TogglePattern
+            try {
+                $tp = $b.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+                if ($tp) {
+                    $best = $b
+                    break
+                }
+            } catch {}
         }
     }
 
     if ($best) {
-        Write-Log -Level 'OK' -Message ("Matched toggle candidate | Name='{0}' | Rect={1}" -f $best.Current.Name, (Get-RectString $best))
+        Write-Log -Level 'OK' -Message ("Matched toggle in group | Name='{0}' | AId='{1}' | Class='{2}'" -f $best.Current.Name, $best.Current.AutomationId, $best.Current.ClassName)
     }
 
     return $best
@@ -537,23 +550,22 @@ try {
     }
     Step-Delay 'expanded Other system tray icons'
 
-    # Phase 2: Find the app entry text.
-    Write-Log -Level 'STEP' -Message ("Searching for app entry text matching /{0}/" -f $effectiveMatchRegex)
-    $textEl = Find-TextElementByRegex -root $win -regex $effectiveMatchRegex
-    if (-not $textEl) {
-        Write-Log -Level 'ERROR' -Message 'Could not find app entry text in UIA text nodes.'
-        Write-Log -Level 'WARN' -Message 'Dumping UIA tree for debugging (early termination)'
-        Dump-UiaTree -Root $win -Max 1400
-        throw "EarlyTermination: could not find app entry text"
+    # Phase 2: Find the app entry group by name.
+    Write-Log -Level 'STEP' -Message ("Searching for app group matching /{0}/" -f $effectiveMatchRegex)
+    $appGroup = Find-AppGroupByRegex -window $win -regex $effectiveMatchRegex
+    if (-not $appGroup) {
+        Write-Log -Level 'ERROR' -Message 'Could not find app group (Group elements) matching requested pattern.'
+        Dump-UiaTree -Root $win -Max 1700
+        throw "EarlyTermination: could not find app group"
     }
-    Step-Delay 'found app entry text'
+    Step-Delay 'found app group'
 
-    # Phase 3: Find toggle switch near that text and set it.
-    $toggle = Find-ToggleNearText -window $win -textEl $textEl
+    # Phase 3: Find toggle switch inside that group and set it.
+    $toggle = Find-ToggleInAppGroup -appGroup $appGroup
     if (-not $toggle) {
-        Write-Log -Level 'ERROR' -Message 'Could not find a TogglePattern button near the matched app text.'
-        Dump-UiaTree -Root $win -Max 1600
-        throw "EarlyTermination: could not locate toggle near text"
+        Write-Log -Level 'ERROR' -Message 'Could not find ToggleSwitch button within matched app group.'
+        Dump-UiaTree -Root $win -Max 1900
+        throw "EarlyTermination: could not locate toggle in app group"
     }
     Step-Delay 'found toggle'
 
