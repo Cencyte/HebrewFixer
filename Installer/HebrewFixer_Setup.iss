@@ -35,6 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "startmenu"; Description: "Create a Start Menu entry"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startup"; Description: "Start HebrewFixer automatically when Windows starts"; GroupDescription: "Startup Options:"
+Name: "trayvisible"; Description: "Always show HebrewFixer icon in the system tray (recommended)"; GroupDescription: "System Tray:"
 Name: "launchapp"; Description: "Launch HebrewFixer now"; GroupDescription: "After Installation:"
 
 [Files]
@@ -84,36 +85,40 @@ begin
   begin
     ExePath := ExpandConstant('{app}\\HebrewFixer1998.exe');
 
-    // ------------------------------------------------------------------
-    // Win11 tray icon pinning (zero-GUI approach)
-    //
-    // Strategy:
-    // 1) Launch HebrewFixer briefly so Windows creates a NotifyIconSettings entry.
-    // 2) Close it.
-    // 3) Set HKCU:\\Control Panel\\NotifyIconSettings\*\\IsPromoted=1 for HebrewFixer1998.exe
-    //    using the registry-only PowerShell helper.
-    //
-    // This makes the first "real" user launch appear already pinned.
-    // ------------------------------------------------------------------
+    // Apply Win11 tray icon pinning ONLY if user selected it
+    if WizardIsTaskSelected('trayvisible') then
+    begin
+      // ------------------------------------------------------------------
+      // Win11 tray icon pinning (zero-GUI approach)
+      //
+      // Strategy:
+      // 1) Launch HebrewFixer briefly so Windows creates a NotifyIconSettings entry.
+      // 2) Close it.
+      // 3) Set HKCU:\\Control Panel\\NotifyIconSettings\*\\IsPromoted=1 for HebrewFixer1998.exe
+      //    using the registry-only PowerShell helper.
+      //
+      // This makes the first "real" user launch appear already pinned.
+      // ------------------------------------------------------------------
 
-    // 1) Launch briefly (tray-only; no main window expected)
-    Exec(ExePath, '', '', SW_HIDE, ewNoWait, ResultCode);
-    Sleep(1500);
+      // 1) Launch briefly (tray-only; no main window expected)
+      Exec(ExePath, '', '', SW_HIDE, ewNoWait, ResultCode);
+      Sleep(1500);
 
-    // 2) Close app immediately (best-effort)
-    Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(500);
+      // 2) Close app immediately (best-effort)
+      Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Sleep(500);
 
-    // 3) Apply registry promotion (silent)
-    PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-    PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
+      // 3) Apply registry promotion (silent)
+      PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
+      PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
 
-    // Do not fail install if the entry isn't present yet; log will show it.
-    Args :=
-      '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing:$false';
+      // Do not fail install if the entry isn't present yet; log will show it.
+      Args :=
+        '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
+        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing:$false';
 
-    Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
 
     // Launch app if user requested it
     if WizardIsTaskSelected('launchapp') then
