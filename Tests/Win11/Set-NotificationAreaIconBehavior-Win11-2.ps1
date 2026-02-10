@@ -115,33 +115,43 @@ function Get-EffectiveRegex([string]$pattern, [bool]$literal) {
 }
 
 # Win32 window manipulation helpers
-Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition @'
+# Use -TypeDefinition (full C# type) and guard against redefinition.
+if (-not ('Win32.NativeMethods' -as [type])) {
+Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 
-public static class NativeMethods {
-  [DllImport("user32.dll", SetLastError=true)]
-  public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+namespace Win32 {
+  public static class NativeMethods {
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
-  [DllImport("user32.dll", SetLastError=true)]
-  public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
-  [DllImport("user32.dll", SetLastError=true)]
-  public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-  [DllImport("user32.dll", SetLastError=true)]
-  public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
-  public const int GWL_EXSTYLE = -20;
-  public const int WS_EX_LAYERED = 0x00080000;
+    [DllImport("user32.dll")]
+    public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
-  public const uint LWA_ALPHA = 0x00000002;
+    public const int GWL_EXSTYLE = -20;
+    public const int WS_EX_LAYERED = 0x00080000;
 
-  public const uint SWP_NOSIZE = 0x0001;
-  public const uint SWP_NOZORDER = 0x0004;
-  public const uint SWP_NOACTIVATE = 0x0010;
+    public const uint LWA_ALPHA = 0x00000002;
+
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOZORDER = 0x0004;
+    public const uint SWP_NOACTIVATE = 0x0010;
+
+    public const uint WM_CLOSE = 0x0010;
+  }
 }
 '@
+}
 
 function Try-GetNativeHwnd([System.Windows.Automation.AutomationElement]$win) {
     try {
@@ -328,13 +338,7 @@ function Set-ToggleState($toggleButton, [string]$desiredOnOff) {
 }
 
 function Close-SettingsWindow([IntPtr]$hWnd) {
-    # WM_CLOSE
-    $sig = @'
-[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-public const uint WM_CLOSE = 0x0010;
-'@
-    Add-Type -Namespace Win32 -Name CloseMethods -MemberDefinition $sig -ErrorAction SilentlyContinue | Out-Null
-    [void][Win32.CloseMethods]::SendMessage($hWnd, [Win32.CloseMethods]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)
+    [void][Win32.NativeMethods]::SendMessage($hWnd, [Win32.NativeMethods]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)
 }
 
 # --- main ---
