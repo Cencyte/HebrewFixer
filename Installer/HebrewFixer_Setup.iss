@@ -15,7 +15,7 @@ DefaultDirName={localappdata}\HebrewFixer
 DefaultGroupName=HebrewFixer
 OutputDir=..\bin
 OutputBaseFilename=HebrewFixer_Setup
-SetupIconFile=..\Icon\ICOs\hebrew_fixer_affinity_on.ico
+; SetupIconFile=..\Icon\ICOs\hebrew_fixer_affinity_on.ico
 UninstallDisplayIcon={app}\HebrewFixer.exe
 Compression=lzma2
 SolidCompression=yes
@@ -35,39 +35,27 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "startmenu"; Description: "Create a Start Menu entry"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startup"; Description: "Start HebrewFixer automatically when Windows starts"; GroupDescription: "Startup Options:"
-Name: "trayvisible"; Description: "Always show HebrewFixer icon in the system tray (recommended)"; GroupDescription: "System Tray:"
+Name: "launchapp"; Description: "Launch HebrewFixer now"; GroupDescription: "After Installation:"
 
 [Files]
 ; Main executable (from bin folder)
-Source: "..\bin\HebrewFixer.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\HebrewFixer.exe"; DestDir: "{app}"; DestName: "HebrewFixer1998.exe"; Flags: ignoreversion
 
-; Icons for tray (ON and OFF states) - script looks for these in its directory
+; Win11 tray icon promotion helper (registry-only, no GUI)
+Source: "..\\Tests\\Win11\\Set-NotificationAreaIconBehavior-Win11-3.ps1"; DestDir: "{app}\\InstallerTools"; DestName: "Set-NotificationAreaIconBehavior-Win11-3.ps1"; Flags: ignoreversion
+
+; Icons for tray (ON and OFF states)
 Source: "..\Icon\ICOs\hebrew_fixer_affinity_on.ico"; DestDir: "{app}"; DestName: "hebrew_fixer_on.ico"; Flags: ignoreversion
 Source: "..\Icon\ICOs\hebrew_fixer_affinity_off.ico"; DestDir: "{app}"; DestName: "hebrew_fixer_off.ico"; Flags: ignoreversion
 
 [Icons]
 ; Start Menu entries (optional)
-Name: "{group}\HebrewFixer"; Filename: "{app}\HebrewFixer.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: startmenu
+Name: "{group}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: startmenu
 Name: "{group}\Uninstall HebrewFixer"; Filename: "{uninstallexe}"; Tasks: startmenu
 ; Desktop shortcut (optional)
-Name: "{autodesktop}\HebrewFixer"; Filename: "{app}\HebrewFixer.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: desktopicon
+Name: "{autodesktop}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: desktopicon
 ; Startup folder entry (runs at Windows startup)
-Name: "{userstartup}\HebrewFixer"; Filename: "{app}\HebrewFixer.exe"; Tasks: startup
-
-[Registry]
-; Make tray icon always visible in Windows 10/11 notification area
-; This sets the "Promote" value for the HebrewFixer.exe to always show in tray
-; Key: HKCU\Control Panel\NotifyIconSettings\<hash>
-; Unfortunately, Windows generates a unique hash per executable path, so we use a different approach:
-; We add to the "Past Icons Stream" / user preference via a run-once script instead
-; For now, we'll document this as a manual step or use the alternative explorer shell approach
-
-; Alternative: Add to "always show" via TrayNotify (requires binary manipulation - not reliable)
-; Instead, we'll create a simple notification on first run asking user to pin the icon
-
-[Run]
-; Launch after installation
-Filename: "{app}\HebrewFixer.exe"; Description: "Launch HebrewFixer"; Flags: nowait postinstall skipifsilent
+Name: "{userstartup}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; Tasks: startup
 
 [UninstallDelete]
 ; Clean up any generated files
@@ -75,19 +63,63 @@ Type: files; Name: "{app}\*.log"
 Type: dirifempty; Name: "{app}"
 
 [Code]
-// Show a message about pinning the tray icon if user selected that option
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  // Kill any running HebrewFixer processes before installation
+  Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  ExePath: String;
+  PSExe: String;
+  PSScript: String;
+  Args: String;
 begin
   if CurStep = ssPostInstall then
   begin
-    if WizardIsTaskSelected('trayvisible') then
+    ExePath := ExpandConstant('{app}\\HebrewFixer1998.exe');
+
+    // ------------------------------------------------------------------
+    // Win11 tray icon pinning (zero-GUI approach)
+    //
+    // Strategy:
+    // 1) Launch HebrewFixer briefly so Windows creates a NotifyIconSettings entry.
+    // 2) Close it.
+    // 3) Set HKCU:\\Control Panel\\NotifyIconSettings\*\\IsPromoted=1 for HebrewFixer1998.exe
+    //    using the registry-only PowerShell helper.
+    //
+    // This makes the first "real" user launch appear already pinned.
+    // ------------------------------------------------------------------
+
+    // 1) Launch briefly (tray-only; no main window expected)
+    Exec(ExePath, '', '', SW_HIDE, ewNoWait, ResultCode);
+    Sleep(1500);
+
+    // 2) Close app immediately (best-effort)
+    Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(500);
+
+    // 3) Apply registry promotion (silent)
+    PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
+
+    // Do not fail install if the entry isn't present yet; log will show it.
+    Args :=
+      '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
+      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing:$false';
+
+    Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // Launch app if user requested it
+    if WizardIsTaskSelected('launchapp') then
     begin
-      MsgBox('To keep HebrewFixer visible in your system tray:' + #13#10 + #13#10 +
-             '1. Click the ^ arrow in your taskbar (bottom-right)' + #13#10 +
-             '2. Find the HebrewFixer icon (Hebrew letter Shin)' + #13#10 +
-             '3. Drag it onto your taskbar' + #13#10 + #13#10 +
-             'This ensures you can always see when Hebrew mode is active.',
-             mbInformation, MB_OK);
+      Exec(ExePath, '', '', SW_SHOW, ewNoWait, ResultCode);
     end;
   end;
 end;
+
