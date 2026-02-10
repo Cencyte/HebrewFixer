@@ -122,7 +122,7 @@ begin
     // On uninstall, revert tray promotion unconditionally (uninstall should leave no pinned state behind).
     // We still keep the marker for install-time decisions, but uninstall always tries to revert.
     PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-    PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1');
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
       '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
@@ -171,7 +171,7 @@ begin
       // ------------------------------------------------------------------
 
       PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-      PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3.ps1');
+      PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1');
 
       // Do not fail install if the entry isn't present yet; log will show it.
       Args :=
