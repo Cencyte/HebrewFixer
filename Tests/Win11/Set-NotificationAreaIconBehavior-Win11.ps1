@@ -220,6 +220,125 @@ function Find-AncestorWithExpandCollapse($el) {
     return $null
 }
 
+function Get-SupportedPatternNames($el) {
+    $names = @()
+    $patterns = @(
+        [System.Windows.Automation.InvokePattern]::Pattern,
+        [System.Windows.Automation.TogglePattern]::Pattern,
+        [System.Windows.Automation.ExpandCollapsePattern]::Pattern,
+        [System.Windows.Automation.SelectionItemPattern]::Pattern,
+        [System.Windows.Automation.LegacyIAccessiblePattern]::Pattern
+    )
+
+    foreach ($p in $patterns) {
+        try {
+            $obj = $el.GetCurrentPattern($p)
+            if ($obj) { $names += $p.ProgrammaticName }
+        } catch {}
+    }
+
+    return ($names -join ', ')
+}
+
+function Click-UiaElement($el, [string]$purpose) {
+    # Tries multiple pattern-based ways to activate an element, without hardcoded coordinates.
+    # Returns $true if we believe we activated it.
+    $ct = Get-ControlTypeName $el
+    $name = ''
+    $cls = ''
+    try { $name = $el.Current.Name } catch {}
+    try { $cls = $el.Current.ClassName } catch {}
+
+    $patNames = Get-SupportedPatternNames $el
+    Write-Log -Level 'INFO' -Message ("Activate element | Purpose={0} | Ct={1} | Name='{2}' | Class='{3}' | Patterns=[{4}] | Rect={5}" -f $purpose, $ct, $name, $cls, $patNames, (Get-RectString $el))
+
+    # 1) Invoke
+    try {
+        $inv = $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+        if ($inv) {
+            $inv.Invoke()
+            Write-Log -Level 'OK' -Message 'Activated via InvokePattern'
+            return $true
+        }
+    } catch {
+        Write-Log -Level 'DEBUG' -Message ("InvokePattern not available/failed: {0}" -f $_.Exception.Message)
+    }
+
+    # 2) ExpandCollapse (some expanders expose this)
+    try {
+        $ec = $el.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+        if ($ec) {
+            $ec.Expand()
+            Write-Log -Level 'OK' -Message 'Activated via ExpandCollapsePattern.Expand()'
+            return $true
+        }
+    } catch {
+        Write-Log -Level 'DEBUG' -Message ("ExpandCollapsePattern not available/failed: {0}" -f $_.Exception.Message)
+    }
+
+    # 3) Toggle
+    try {
+        $tp = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+        if ($tp) {
+            $tp.Toggle()
+            Write-Log -Level 'OK' -Message 'Activated via TogglePattern.Toggle()'
+            return $true
+        }
+    } catch {
+        Write-Log -Level 'DEBUG' -Message ("TogglePattern not available/failed: {0}" -f $_.Exception.Message)
+    }
+
+    # 4) SelectionItem (some list-style expanders)
+    try {
+        $sp = $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+        if ($sp) {
+            $sp.Select()
+            Write-Log -Level 'OK' -Message 'Activated via SelectionItemPattern.Select()'
+            return $true
+        }
+    } catch {
+        Write-Log -Level 'DEBUG' -Message ("SelectionItemPattern not available/failed: {0}" -f $_.Exception.Message)
+    }
+
+    # 5) Legacy IAccessible DoDefaultAction
+    try {
+        $la = $el.GetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern)
+        if ($la) {
+            $la.DoDefaultAction()
+            Write-Log -Level 'OK' -Message 'Activated via LegacyIAccessiblePattern.DoDefaultAction()'
+            return $true
+        }
+    } catch {
+        Write-Log -Level 'DEBUG' -Message ("LegacyIAccessiblePattern not available/failed: {0}" -f $_.Exception.Message)
+    }
+
+    # 6) Last resort: clickable point -> mouse click (still programmatic; no hardcoded coords)
+    try {
+        $pt = $null
+        if ($el.TryGetClickablePoint([ref]$pt)) {
+            Write-Log -Level 'WARN' -Message ("Falling back to clickable point click at ({0},{1})" -f [int]$pt.X, [int]$pt.Y)
+            Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+[DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+public const uint MOUSEEVENTF_LEFTUP   = 0x0004;
+'@
+            [Win32.NativeMethods]::SetCursorPos([int]$pt.X, [int]$pt.Y) | Out-Null
+            Start-Sleep -Milliseconds 80
+            [Win32.NativeMethods]::mouse_event([Win32.NativeMethods]::MOUSEEVENTF_LEFTDOWN,0,0,0,[UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 50
+            [Win32.NativeMethods]::mouse_event([Win32.NativeMethods]::MOUSEEVENTF_LEFTUP,0,0,0,[UIntPtr]::Zero)
+            Write-Log -Level 'OK' -Message 'Activated via clickable point mouse click'
+            return $true
+        }
+    } catch {
+        Write-Log -Level 'DEBUG' -Message ("ClickablePoint click failed: {0}" -f $_.Exception.Message)
+    }
+
+    Write-Log -Level 'ERROR' -Message 'Failed to activate element via all supported patterns/fallbacks'
+    return $false
+}
+
 function Expand-SectionByLabel($window, [string]$labelRegex) {
     Write-Log -Level 'STEP' -Message ("Locating section label /{0}/" -f $labelRegex)
     $label = Find-TextElementByRegex -root $window -regex $labelRegex
@@ -277,14 +396,12 @@ function Expand-SectionByLabel($window, [string]$labelRegex) {
             if (($bc -match 'ExpanderToggleButton') -or ($bn -match 'Show\s+more\s+settings')) {
                 Write-Log -Level 'OK' -Message ("Found expander button candidate | Name='{0}' | Class='{1}' | Rect={2}" -f $bn, $bc, (Get-RectString $b))
                 try {
-                    $inv = $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-                    if ($inv) {
-                        $inv.Invoke()
-                        Write-Log -Level 'OK' -Message 'Invoked expander button (InvokePattern)'
+                    if (Click-UiaElement -el $b -purpose 'Expand Other system tray icons') {
+                        Write-Log -Level 'OK' -Message 'Activated expander button'
                         return $group
                     }
                 } catch {
-                    Write-Log -Level 'WARN' -Message ("Expander candidate exists but InvokePattern failed: {0}" -f $_.Exception.Message)
+                    Write-Log -Level 'WARN' -Message ("Expander candidate activation failed: {0}" -f $_.Exception.Message)
                 }
             }
         }
