@@ -81,7 +81,23 @@ function Write-Log {
 
     try { Write-Host $line -ForegroundColor $color } catch {}
     Write-Verbose $line
-    Add-Content -LiteralPath $Global:LogPath -Value $line -Encoding UTF8
+
+    # Never let logging failure break tray promotion/revert.
+    try {
+        Add-Content -LiteralPath $Global:LogPath -Value $line -Encoding UTF8
+    }
+    catch {
+        try {
+            if (-not $Global:FallbackLogPath) {
+                $dir = Split-Path -Parent $Global:LogPath
+                if (-not $dir) { $dir = $env:TEMP }
+                $Global:FallbackLogPath = Join-Path $dir ("installer_debug_fallback_{0}.log" -f $PID)
+            }
+            Add-Content -LiteralPath $Global:FallbackLogPath -Value $line -Encoding UTF8
+        } catch {
+            # As a last resort, swallow.
+        }
+    }
 }
 
 function Get-EffectiveRegex([string]$pattern, [bool]$literal) {
