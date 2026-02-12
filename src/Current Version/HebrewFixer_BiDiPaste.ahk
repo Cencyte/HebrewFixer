@@ -21,7 +21,7 @@ SetKeyDelay(-1, -1)
 
 global g_Enabled := false
 global g_Buffer := ""
-global g_AutoEnable := false  ; Auto-enable when Hebrew IME is detected
+global g_AutoEnable := true   ; Auto-enable when Hebrew IME is detected (on by default)
 global g_ManualOverride := false  ; True when user manually toggled (overrides auto)
 global g_LastIMEState := false  ; Track IME state to detect changes
 
@@ -61,12 +61,35 @@ global HebrewMap := Map(
 ; INITIALIZATION
 ; =============================================================================
 
+; Check for command-line arguments
+for arg in A_Args {
+    if (arg = "/exit" || arg = "-exit" || arg = "--exit") {
+        ; Signal existing instance to exit by sending WM_CLOSE
+        DetectHiddenWindows(true)
+        if WinExist("HebrewFixer ahk_class AutoHotkey") {
+            PostMessage(0x10, 0, 0)  ; WM_CLOSE = 0x10
+        }
+        ExitApp()
+    }
+}
+
+; Register cleanup handler for graceful exit
+OnExit(CleanupBeforeExit)
+
 SetupTray()
 ToolTip("HebrewFixer (Per-Key v2) loaded`nCtrl+Alt+H to toggle", A_ScreenWidth // 2 - 120, 50)
 SetTimer(() => ToolTip(), -2500)
 
 ; Start auto-enable timer (checks every 250ms)
 SetTimer(CheckAutoEnable, 250)
+
+; Cleanup function - ensures clean exit
+CleanupBeforeExit(ExitReason, ExitCode) {
+    ; AHK automatically removes tray icon on normal exit
+    ; Just ensure timers are stopped
+    SetTimer(CheckAutoEnable, 0)
+    return 0  ; Allow exit to proceed
+}
 
 ; =============================================================================
 ; TRAY
