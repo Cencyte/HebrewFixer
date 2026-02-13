@@ -42,20 +42,12 @@ Name: "launchapp"; Description: "Launch HebrewFixer now"; GroupDescription: "Aft
 ; Main executable (from bin folder)
 Source: "..\bin\HebrewFixer.exe"; DestDir: "{app}"; DestName: "HebrewFixer1998.exe"; Flags: ignoreversion
 
-; Win11 tray icon promotion helper (registry-only, no GUI)
-Source: "..\\Tests\\Win11\\Set-NotificationAreaIconBehavior-Win11-3.ps1"; DestDir: "{app}\\InstallerTools"; DestName: "Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1"; Flags: ignoreversion overwritereadonly
+; Invisible tray icon promotion script (based on Win11-2, with registry positioning)
+Source: "..\\Tests\\Win11\\PromoteTrayIconInvisible.ps1"; DestDir: "{app}\\InstallerTools"; Flags: ignoreversion overwritereadonly uninsremovereadonly
 
 ; Icons for tray (ON and OFF states)
 Source: "..\Icon\ICOs\hebrew_fixer_affinity_on.ico"; DestDir: "{app}"; DestName: "hebrew_fixer_on.ico"; Flags: ignoreversion
 Source: "..\Icon\ICOs\hebrew_fixer_affinity_off.ico"; DestDir: "{app}"; DestName: "hebrew_fixer_off.ico"; Flags: ignoreversion
-
-[Registry]
-; Marker used to know whether THIS installer applied tray promotion, so we can safely revert.
-; On uninstall, we delete the whole HKCU\Software\HebrewFixer key (see entry below).
-Root: HKCU; Subkey: "Software\HebrewFixer"; ValueType: dword; ValueName: "TrayVisibleApplied"; ValueData: "0"; Flags: uninsdeletevalue
-
-; Ensure no installer marker remains after uninstall.
-Root: HKCU; Subkey: "Software\HebrewFixer"; Flags: uninsdeletekey
 
 [Icons]
 ; Start Menu entries (optional)
@@ -74,6 +66,28 @@ Type: filesandordirs; Name: "{app}\InstallerTools"
 Type: filesandordirs; Name: "{app}"
 
 [Code]
+
+// Constants
+const
+  HWND_TOPMOST = -1;
+  SWP_NOSIZE = 1;
+  SWP_NOMOVE = 2;
+  SWP_SHOWWINDOW = $40;
+
+// Win32 API functions (TRect is already defined in Inno Setup)
+function SetWindowPos(hWnd: HWND; hWndInsertAfter: HWND; X: Integer; Y: Integer;
+  cx: Integer; cy: Integer; uFlags: UINT): BOOL;
+  external 'SetWindowPos@user32.dll stdcall';
+
+function GetWindowRect(hWnd: HWND; var lpRect: TRect): BOOL;
+  external 'GetWindowRect@user32.dll stdcall';
+
+procedure InitializeWizard;
+begin
+  // Make the installer window always-on-top
+  SetWindowPos(WizardForm.Handle, HWND_TOPMOST, 0, 0, 0, 0, 
+    SWP_NOSIZE or SWP_NOMOVE or SWP_SHOWWINDOW);
+end;
 
 function InstallLogPath(): String;
 begin
@@ -153,7 +167,7 @@ begin
     // On uninstall, revert tray promotion unconditionally (uninstall should leave no pinned state behind).
     // We still keep the marker for install-time decisions, but uninstall always tries to revert.
     PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-    PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\PromoteTrayIconInvisible.ps1');
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
       '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
@@ -179,6 +193,8 @@ var
   PSScript: String;
   Args: String;
   Marker: Cardinal;
+  WinRect: TRect;
+  WinX, WinY, WinWidth, WinHeight: Integer;
 begin
   LogLine('CurStepChanged: step=' + IntToStr(Ord(CurStep)));
   if CurStep = ssPostInstall then
@@ -187,70 +203,70 @@ begin
     LogLine('POSTINSTALL: trayvisible=' + IntToStr(Ord(WizardIsTaskSelected('trayvisible'))) + ', launchapp=' + IntToStr(Ord(WizardIsTaskSelected('launchapp'))) + ', startup=' + IntToStr(Ord(WizardIsTaskSelected('startup'))));
     ExePath := ExpandConstant('{app}\\HebrewFixer1998.exe');
 
-    // Apply Win11 tray icon pinning ONLY if user selected it
-    if WizardIsTaskSelected('trayvisible') then
+    // Step 1: Launch HebrewFixer FIRST (hidden) so Windows registers it as a tray app
+    LogLine('INSTALL: Launching HebrewFixer (hidden) to register with Windows...');
+    Exec(ExePath, '', '', SW_HIDE, ewNoWait, ResultCode);
+    LogLine('INSTALL: HebrewFixer launched (hidden), waiting 5 seconds for tray registration...');
+    Sleep(5000);  // Wait for app to fully start and appear in tray
+
+    // Step 2: Run tray icon script (Settings spawns invisibly behind installer)
+    // Pass -HideIcon if checkbox is unchecked
+    if GetWindowRect(WizardForm.Handle, WinRect) then
     begin
-      // ------------------------------------------------------------------
-      // Win11 tray icon pinning (zero-GUI approach)
-      //
-      // Installer requirement:
-      // - Do NOT launch HebrewFixer during install (can flash UI / appear on taskbar).
-      //
-      // Instead:
-      // - Apply the HKCU NotifyIconSettings IsPromoted=1 setting if the entry already exists.
-      // - If no entry exists yet, this is non-fatal; the user can launch HebrewFixer once and
-      //   re-run a "Repair" later (or we can add a self-healing check at app startup).
-      // ------------------------------------------------------------------
+      WinX := WinRect.Left;
+      WinY := WinRect.Top;
+      WinWidth := WinRect.Right - WinRect.Left;
+      WinHeight := WinRect.Bottom - WinRect.Top;
+
+      LogLine('INSTALL: Installer bounds: X=' + IntToStr(WinX) + ', Y=' + IntToStr(WinY) + 
+              ', Width=' + IntToStr(WinWidth) + ', Height=' + IntToStr(WinHeight));
 
       PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-      PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1');
+      PSScript := ExpandConstant('{app}\\InstallerTools\\PromoteTrayIconInvisible.ps1');
 
-      // Do not fail install if the entry isn't present yet; log will show it.
       Args :=
         '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-        '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 1 -FailIfMissing 0 ' +
-        '-LogPath "' + InstallPSLogPath() + '"';
+        '-InstallerX ' + IntToStr(WinX) + ' ' +
+        '-InstallerY ' + IntToStr(WinY) + ' ' +
+        '-InstallerWidth ' + IntToStr(WinWidth) + ' ' +
+        '-InstallerHeight ' + IntToStr(WinHeight) + ' ' +
+        '-AppName "HebrewFixer1998.exe"';
 
-      LogLine('INSTALL: trayvisible checked; running promotion');
+      // Add -HideIcon if checkbox is unchecked
+      if not WizardIsTaskSelected('trayvisible') then
+      begin
+        Args := Args + ' -HideIcon';
+        LogLine('INSTALL: trayvisible unchecked; will HIDE icon from tray');
+      end
+      else
+      begin
+        LogLine('INSTALL: trayvisible checked; will SHOW icon in tray');
+      end;
+
       LogLine('INSTALL: PSExe=' + PSExe);
       LogLine('INSTALL: Args=' + Args);
+
       // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
       Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
       LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
       AppendPSLogToMain('INSTALL');
-
-      // Record that we applied tray promotion
-      RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 1);
     end
     else
     begin
-      // If user UNchecked trayvisible but we had previously applied it, revert to default (IsPromoted=0)
-      if RegQueryDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', Marker) and (Marker = 1) then
-      begin
-        PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-        PSScript := ExpandConstant('{app}\\InstallerTools\\Set-NotificationAreaIconBehavior-Win11-3-INSTALLER.ps1');
-        Args :=
-          '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-          '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
-          '-LogPath "' + InstallPSLogPath() + '"';
-
-        LogLine('INSTALL: trayvisible unchecked but marker=1; running revert');
-        LogLine('INSTALL: PSExe=' + PSExe);
-        LogLine('INSTALL: Args=' + Args);
-        // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
-        Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-        LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
-        AppendPSLogToMain('INSTALL');
-
-        // Reset marker
-        RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
-      end;
+      LogLine('INSTALL: ERROR - GetWindowRect failed, cannot get installer position');
     end;
 
-    // Launch app if user requested it
+    // Step 3: If user wants app visible, bring it to foreground (it's already running from Step 1)
     if WizardIsTaskSelected('launchapp') then
     begin
-      Exec(ExePath, '', '', SW_SHOW, ewNoWait, ResultCode);
+      LogLine('INSTALL: User wants app visible - it is already running from registration step');
+      // App is already running from Step 1, no need to launch again
+    end
+    else
+    begin
+      LogLine('INSTALL: User does NOT want app visible - killing the registration instance');
+      // User didn't check "Launch now", so kill the hidden instance we started for registration
+      Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
   end;
 end;
