@@ -205,9 +205,11 @@ begin
 
     // Step 1: Launch HebrewFixer FIRST (hidden) so Windows registers it as a tray app
     LogLine('INSTALL: Launching HebrewFixer (hidden) to register with Windows...');
-    Exec(ExePath, '', '', SW_HIDE, ewNoWait, ResultCode);
-    LogLine('INSTALL: HebrewFixer launched (hidden), waiting 5 seconds for tray registration...');
-    Sleep(5000);  // Wait for app to fully start and appear in tray
+    Exec(ExePath, '/NoTooltip', '', SW_HIDE, ewNoWait, ResultCode);
+    LogLine('INSTALL: HebrewFixer launched (hidden, /NoTooltip), waiting briefly for tray registration...');
+    // Tight wait budget (<= 1s total)
+    Sleep(500);
+    Sleep(500);
 
     // Step 2: Run tray icon script (Settings spawns invisibly behind installer)
     // Pass -HideIcon if checkbox is unchecked
