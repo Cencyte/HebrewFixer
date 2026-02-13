@@ -43,7 +43,7 @@ if (-not (Test-Path -LiteralPath $outDir)) {
 
 # Ahk2Exe is sensitive to spaces in paths; pass a single, explicitly quoted argument string.
 $ahkScriptFull = (Resolve-Path -LiteralPath $AhkScript).Path
-$outExeFull = (Resolve-Path -LiteralPath $outDir).Path + '\\' + (Split-Path -Leaf $OutExe)
+$outExeFull = Join-Path -Path (Resolve-Path -LiteralPath $outDir).Path -ChildPath (Split-Path -Leaf $OutExe)
 $baseFull = (Resolve-Path -LiteralPath $BaseFile).Path
 
 # /silent verbose makes Ahk2Exe print useful diagnostics in the console.
