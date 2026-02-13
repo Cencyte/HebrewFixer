@@ -164,7 +164,7 @@ try {
     if ($existing) {
         Write-LogLine "Found $($existing.Count) existing SystemSettings process(es), killing..." -Level WARN
         $existing | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 250
     } else {
         Write-LogLine "No existing SystemSettings processes found (good)"
     }
@@ -178,7 +178,7 @@ try {
     Write-LogLine "Waiting for Settings window..." -Level STEP
     $settingsWindow = $null
     for ($i = 0; $i -lt 20; $i++) {
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 250
         
         $allProcs = Get-Process -Name "SystemSettings" -ErrorAction SilentlyContinue
         if ($allProcs) {
@@ -205,7 +205,7 @@ try {
     }
     
     # Step 4: Wait for UI to fully load
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 250
     
     # Step 5: Perform UI Automation (Win11-2 proven logic)
     Write-LogLine "Starting UI Automation (proven Win11-2 logic)..." -Level STEP
@@ -373,8 +373,8 @@ try {
     $expanded = Expand-SectionByLabel -window $settingsElement -labelRegex 'Other\s+system\s+tray\s+icons'
     if (-not $expanded) { Write-LogLine "Could not expand section (may already be expanded)" -Level WARN }
 
-    Write-LogLine "Waiting 5 seconds for UI to render all app groups..." -Level DEBUG
-    Start-Sleep -Milliseconds 500
+    Write-LogLine "Waiting briefly for UI to render all app groups..." -Level DEBUG
+    Start-Sleep -Milliseconds 250
 
     $appRegex = [regex]::Escape($AppName)
     $appGroup = Find-AppGroupByRegex -window $settingsElement -regex $appRegex
