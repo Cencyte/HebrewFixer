@@ -39,8 +39,11 @@ param(
     
     [switch]$HideIcon = $false,
 
-    # Enabled by default for the Tests copy.
-    [switch]$DebugMode = $true,
+    # If set, sanitize existing NotifyIconSettings promoted values for this app before UI automation.
+    [switch]$CleanupRegistry = $false,
+
+    # Optional extra debug logging.
+    [switch]$DebugMode = $false,
     
     [string]$LogPath = "C:\Users\FireSongz\AppData\Roaming\HebrewFixer\InstallLogs\notification_area_icons_installer.log"
 )
@@ -96,6 +99,49 @@ function Ensure-LogDirectory([string]$path) {
 Ensure-LogDirectory $LogPath
 Ensure-LogDirectory $DebugLogPath
 
+function Sanitize-NotifyIconSettings {
+    param(
+        [Parameter(Mandatory)][string]$AppName,
+        [Parameter(Mandatory)][int]$DesiredPromoted
+    )
+
+    $base = 'HKCU:\\Control Panel\\NotifyIconSettings'
+    if (-not (Test-Path $base)) {
+        Write-LogLine "CleanupRegistry: NotifyIconSettings key not present: $base" -Level WARN
+        return
+    }
+
+    $touched = 0
+    $errors = 0
+    $keys = Get-ChildItem $base -ErrorAction SilentlyContinue
+    foreach ($k in $keys) {
+        try {
+            $p = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction Stop
+
+            $strings = @()
+            foreach ($prop in $p.PSObject.Properties) {
+                if ($prop.Value -is [string] -and $prop.Value) {
+                    $strings += $prop.Value
+                }
+            }
+            $hit = $false
+            foreach ($s in $strings) {
+                if ($s -like "*$AppName*") { $hit = $true; break }
+            }
+            if (-not $hit) { continue }
+
+            New-ItemProperty -LiteralPath $k.PSPath -Name 'IsPromoted' -Value $DesiredPromoted -PropertyType DWord -Force | Out-Null
+            New-ItemProperty -LiteralPath $k.PSPath -Name 'IsUserPromoted' -Value $DesiredPromoted -PropertyType DWord -Force | Out-Null
+
+            $touched++
+        } catch {
+            $errors++
+        }
+    }
+
+    Write-LogLine "CleanupRegistry: touched=$touched errors=$errors desired=$DesiredPromoted app='$AppName'" -Level INFO
+}
+
 # Win32 helper (for post-launch exact positioning)
 Add-Type -TypeDefinition @"
 using System;
@@ -147,7 +193,8 @@ try {
     $right = $left + $InstallerWidth
     $bottom = $InstallerY + $InstallerHeight
 
-    Write-LogLine "DEBUG: Settings offset 600px LEFT from installer for visibility" -Level WARN
+    # (debug offset removed)
+# Write-LogLine "DEBUG: Settings offset 600px LEFT from installer for visibility" -Level WARN
     Write-LogLine "Desired Settings bounds: L=$left T=$top R=$right B=$bottom" -Level DEBUG
 
     [Array]::Copy([BitConverter]::GetBytes($left), 0, $matchedPos, 28, 4)

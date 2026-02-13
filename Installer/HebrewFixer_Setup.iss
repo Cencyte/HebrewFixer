@@ -170,7 +170,7 @@ begin
     PSScript := ExpandConstant('{app}\\InstallerTools\\PromoteTrayIconInvisible.ps1');
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-      '-Match "HebrewFixer1998.exe" -LiteralMatch -DesiredSetting 0 -FailIfMissing 0 ' +
+      '-AppName "HebrewFixer1998.exe" -CleanupRegistry ' +
       '-LogPath "' + InstallPSLogPath() + '"';
     LogLine('UNINSTALL: running tray revert');
     LogLine('UNINSTALL: PSExe=' + PSExe);
@@ -232,7 +232,7 @@ begin
         '-InstallerY ' + IntToStr(WinY) + ' ' +
         '-InstallerWidth ' + IntToStr(WinWidth) + ' ' +
         '-InstallerHeight ' + IntToStr(WinHeight) + ' ' +
-        '-AppName "HebrewFixer1998.exe"';
+        '-AppName \"HebrewFixer1998.exe\" -CleanupRegistry -HideIcon';
 
       // Add -HideIcon if checkbox is unchecked
       if not WizardIsTaskSelected('trayvisible') then
