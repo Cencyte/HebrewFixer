@@ -1,6 +1,6 @@
 # SESSION MANUSCRIPT — HebrewFixer — 2026-02-10 (Tue)
 
-**HebrewFixer Manuscripts Series:** Volume 5/5  
+**HebrewFixer Manuscripts Series:** Volume 5/6  
 **Document type:** Session log (Win11 tray icon pinning + installer/uninstaller hardening)
 
 ## Abstract

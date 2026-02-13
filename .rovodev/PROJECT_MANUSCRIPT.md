@@ -1,6 +1,6 @@
 # HebrewFixer — Project Lifecycle Manuscript
 
-**HebrewFixer Manuscripts Series:** Volume 1/4  
+**HebrewFixer Manuscripts Series:** Volume 1/6  
 **Document type:** Project lifecycle (tray icon + packaging focus)
 
 ## Abstract

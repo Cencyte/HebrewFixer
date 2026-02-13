@@ -1,6 +1,6 @@
 # SESSION MANUSCRIPT — HebrewFixer — 2026-02-05 (Thu)
 
-**HebrewFixer Manuscripts Series:** Volume 2/4  
+**HebrewFixer Manuscripts Series:** Volume 2/6  
 **Document type:** Session log (core RTL typing + BiDi paste)
 
 **Requested save path (user machine):** `C:\Users\FireSongz\Desktop\SESSION_MANUSCRIPT_HebrewFixer_20260205.md`  

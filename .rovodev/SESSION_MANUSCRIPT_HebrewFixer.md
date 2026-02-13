@@ -1,6 +1,6 @@
 # HebrewFixer — Project Lifecycle Manuscript
 
-**HebrewFixer Manuscripts Series:** Volume 3/4  
+**HebrewFixer Manuscripts Series:** Volume 3/6  
 **Document type:** Early lifecycle log (per-key intercept origins)
 
 ## Abstract
