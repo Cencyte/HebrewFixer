@@ -142,7 +142,7 @@ try {
 
     # DEBUG MODE: Offset Settings 600px to the LEFT so we can see what it's doing
     # (normally it would overlay the installer invisibly)
-    $left = $InstallerX - 600
+    $left = $InstallerX
     $top  = $InstallerY
     $right = $left + $InstallerWidth
     $bottom = $InstallerY + $InstallerHeight
