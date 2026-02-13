@@ -205,7 +205,7 @@ try {
     }
     
     # Step 4: Wait for UI to fully load
-    Start-Sleep -Seconds 2
+    Start-Sleep -Milliseconds 500
     
     # Step 5: Perform UI Automation (Win11-2 proven logic)
     Write-LogLine "Starting UI Automation (proven Win11-2 logic)..." -Level STEP
@@ -374,7 +374,7 @@ try {
     if (-not $expanded) { Write-LogLine "Could not expand section (may already be expanded)" -Level WARN }
 
     Write-LogLine "Waiting 5 seconds for UI to render all app groups..." -Level DEBUG
-    Start-Sleep -Seconds 5
+    Start-Sleep -Milliseconds 500
 
     $appRegex = [regex]::Escape($AppName)
     $appGroup = Find-AppGroupByRegex -window $settingsElement -regex $appRegex

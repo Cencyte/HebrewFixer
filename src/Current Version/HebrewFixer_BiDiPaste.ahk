@@ -24,6 +24,7 @@ global g_Buffer := ""
 global g_AutoEnable := true   ; Auto-enable when Hebrew IME is detected (on by default)
 global g_ManualOverride := false  ; True when user manually toggled (overrides auto)
 global g_LastIMEState := false  ; Track IME state to detect changes
+global g_NoTooltip := false
 
 ; Hebrew keyboard layout mapping (US QWERTY physical keys → Hebrew chars)
 ; Based on standard Israeli Hebrew keyboard layout
@@ -63,6 +64,10 @@ global HebrewMap := Map(
 
 ; Check for command-line arguments
 for arg in A_Args {
+    if (arg = "/NoTooltip" || arg = "-NoTooltip" || arg = "--NoTooltip") {
+        g_NoTooltip := true
+        continue
+    }
     if (arg = "/exit" || arg = "-exit" || arg = "--exit") {
         ; Signal existing instance to exit by sending WM_CLOSE
         DetectHiddenWindows(true)
@@ -77,8 +82,7 @@ for arg in A_Args {
 OnExit(CleanupBeforeExit)
 
 SetupTray()
-ToolTip("HebrewFixer (Per-Key v2) loaded`nCtrl+Alt+H to toggle", A_ScreenWidth // 2 - 120, 50)
-SetTimer(() => ToolTip(), -2500)
+ShowTip("HebrewFixer (Per-Key v2) loaded`nCtrl+Alt+H to toggle", A_ScreenWidth // 2 - 120, 50, 2500)
 
 ; Start auto-enable timer (checks every 250ms)
 SetTimer(CheckAutoEnable, 250)
@@ -89,6 +93,21 @@ CleanupBeforeExit(ExitReason, ExitCode) {
     ; Just ensure timers are stopped
     SetTimer(CheckAutoEnable, 0)
     return 0  ; Allow exit to proceed
+}
+
+; =============================================================================
+; TOOLTIP HELPERS
+; =============================================================================
+
+ShowTip(msg, x := unset, y := unset, durationMs := 1500) {
+    global g_NoTooltip
+    if g_NoTooltip
+        return
+    if IsSet(x) && IsSet(y)
+        ToolTip(msg, x, y)
+    else
+        ToolTip(msg)
+    SetTimer(() => ToolTip(), -durationMs)
 }
 
 ; =============================================================================
@@ -233,8 +252,7 @@ ToggleMode() {
     msg := "Hebrew RTL: " . (g_Enabled ? "ON" : "OFF")
     if (g_AutoEnable && g_ManualOverride)
         msg .= " (override)"
-    ToolTip(msg, A_ScreenWidth // 2 - 60, 50)
-    SetTimer(() => ToolTip(), -1500)
+    ShowTip(msg, A_ScreenWidth // 2 - 60, 50, 1500)
 }
 
 ^!h::ToggleMode()
