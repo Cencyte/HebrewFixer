@@ -31,7 +31,7 @@ param(
     [string]$SettingsWindowRegex = 'Settings',
 
     # Window hiding behavior
-    [switch]$MoveOffScreen = $true,
+    [switch]$MoveOffScreen = $false,
 
     # Best-effort transparency (may fail harmlessly)
     [switch]$Transparent = $false,
