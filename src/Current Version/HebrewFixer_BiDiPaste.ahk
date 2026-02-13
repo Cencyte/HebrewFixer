@@ -130,7 +130,7 @@ ToggleAutoEnable() {
     g_AutoEnable := !g_AutoEnable
     UpdateTray()
     ShowTip("Auto-enable: " . (g_AutoEnable ? "ON" : "OFF"), A_ScreenWidth // 2 - 60, 50, 1500)
-
+}
 
 CheckAutoEnable() {
     global g_AutoEnable, g_Enabled, g_ManualOverride, g_LastIMEState
