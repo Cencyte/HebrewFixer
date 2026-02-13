@@ -51,11 +51,28 @@ $argString = "/in `"$ahkScriptFull`" /out `"$outExeFull`" /base `"$baseFull`" /s
 
 Log "Running: `"$Ahk2ExePath`" $argString"
 
-$proc = Start-Process -FilePath $Ahk2ExePath -ArgumentList $argString -Wait -PassThru
-Log "Ahk2Exe exit code=$($proc.ExitCode)"
+# Run Ahk2Exe with captured stdout/stderr so failures are diagnosable.
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $Ahk2ExePath
+$psi.Arguments = $argString
+$psi.UseShellExecute = $false
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+$psi.CreateNoWindow = $true
 
-if ($proc.ExitCode -ne 0) {
-    throw "Ahk2Exe failed with exit code $($proc.ExitCode)"
+$p = New-Object System.Diagnostics.Process
+$p.StartInfo = $psi
+[void]$p.Start()
+$stdout = $p.StandardOutput.ReadToEnd()
+$stderr = $p.StandardError.ReadToEnd()
+$p.WaitForExit()
+
+Log "Ahk2Exe exit code=$($p.ExitCode)"
+if ($stdout) { Log "Ahk2Exe stdout:\n$stdout" }
+if ($stderr) { Log "Ahk2Exe stderr:\n$stderr" }
+
+if ($p.ExitCode -ne 0) {
+    throw "Ahk2Exe failed with exit code $($p.ExitCode)"
 }
 
 if (-not (Test-Path -LiteralPath $OutExe)) {
