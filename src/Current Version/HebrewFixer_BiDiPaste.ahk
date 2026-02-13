@@ -129,9 +129,8 @@ ToggleAutoEnable() {
     global g_AutoEnable
     g_AutoEnable := !g_AutoEnable
     UpdateTray()
-    ToolTip("Auto-enable: " . (g_AutoEnable ? "ON" : "OFF"), A_ScreenWidth // 2 - 60, 50)
-    SetTimer(() => ToolTip(), -1500)
-}
+    ShowTip("Auto-enable: " . (g_AutoEnable ? "ON" : "OFF"), A_ScreenWidth // 2 - 60, 50, 1500)
+
 
 CheckAutoEnable() {
     global g_AutoEnable, g_Enabled, g_ManualOverride, g_LastIMEState
