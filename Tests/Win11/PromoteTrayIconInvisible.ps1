@@ -255,7 +255,13 @@ try {
     Start-Sleep -Milliseconds 250
     
     # Step 5: Perform UI Automation (Win11-2 proven logic)
-    Write-LogLine "Starting UI Automation (proven Win11-2 logic)..." -Level STEP
+    if ($CleanupRegistry) {
+    $desired = if ($HideIcon) { 0 } else { 1 }
+    Write-LogLine "CleanupRegistry enabled: sanitizing NotifyIconSettings (desired=$desired)" -Level STEP
+    Sanitize-NotifyIconSettings -AppName $AppName -DesiredPromoted $desired
+}
+
+Write-LogLine "Starting UI Automation (proven Win11-2 logic)..." -Level STEP
 
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes

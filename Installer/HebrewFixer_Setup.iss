@@ -232,7 +232,7 @@ begin
         '-InstallerY ' + IntToStr(WinY) + ' ' +
         '-InstallerWidth ' + IntToStr(WinWidth) + ' ' +
         '-InstallerHeight ' + IntToStr(WinHeight) + ' ' +
-        '-AppName \"HebrewFixer1998.exe\" -CleanupRegistry -HideIcon';
+        '-AppName \"HebrewFixer1998.exe\" -CleanupRegistry';
 
       // Add -HideIcon if checkbox is unchecked
       if not WizardIsTaskSelected('trayvisible') then
