@@ -1,4 +1,13 @@
 ; HebrewFixer Installer Script for Inno Setup 6
+
+; Private build toggle: enable/disable Settings GUI + UI automation stage.
+; Set to 1 to include UI automation, 0 to do registry-only behavior.
+#ifndef HF_ENABLE_UI_AUTOMATION
+  ; 0 = do NOT launch Settings / UI Automation (avoid explorer.exe + ms-settings instability)
+  ; 1 = enable full Settings UI automation during install
+  #define HF_ENABLE_UI_AUTOMATION 0
+#endif
+
 ; RTL Hebrew typing support for Affinity Designer
 ; https://github.com/Cencyte/HebrewFixer
 
@@ -15,8 +24,10 @@ DefaultDirName={localappdata}\HebrewFixer
 DefaultGroupName=HebrewFixer
 OutputDir=..\bin
 OutputBaseFilename=HebrewFixer_Setup
-; SetupIconFile=..\Icon\ICOs\hebrew_fixer_affinity_on.ico
-UninstallDisplayIcon={app}\HebrewFixer.exe
+SetupIconFile=..\Icon\ICOs\hebrew_fixer_affinity_on.ico
+; Programs & Features icon (appwiz.cpl) is taken from this path.
+; NOTE: Our installed EXE is renamed to HebrewFixer1998.exe in [Files].
+UninstallDisplayIcon={app}\HebrewFixer1998.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -32,18 +43,21 @@ CreateUninstallRegKey=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startmenu"; Description: "Create a Start Menu entry"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startup"; Description: "Start HebrewFixer automatically when Windows starts"; GroupDescription: "Startup Options:"
 Name: "trayvisible"; Description: "Always show HebrewFixer icon in the system tray (recommended)"; GroupDescription: "System Tray:"
-Name: "launchapp"; Description: "Launch HebrewFixer now"; GroupDescription: "After Installation:"
+Name: "launchapp"; Description: "Launch HebrewFixer now"; GroupDescription: "After Installation:"; Flags: unchecked
 
 [Files]
 ; Main executable (from bin folder)
 Source: "..\bin\HebrewFixer.exe"; DestDir: "{app}"; DestName: "HebrewFixer1998.exe"; Flags: ignoreversion
 
-; Invisible tray icon promotion script (based on Win11-2, with registry positioning)
+; Tray icon promotion script (does registry sanitize and optionally Settings UI automation)
 Source: "..\\Tests\\Win11\\PromoteTrayIconInvisible.ps1"; DestDir: "{app}\\InstallerTools"; Flags: ignoreversion overwritereadonly uninsremovereadonly
+
+; Registry-only cleanup script (NO UI automation) for uninstall
+Source: "CleanupNotifyIconSettings.ps1"; DestDir: "{app}\\InstallerTools"; Flags: ignoreversion overwritereadonly uninsremovereadonly
 
 ; Icons for tray (ON and OFF states)
 Source: "..\Icon\ICOs\hebrew_fixer_affinity_on.ico"; DestDir: "{app}"; DestName: "hebrew_fixer_on.ico"; Flags: ignoreversion
@@ -74,6 +88,9 @@ const
   SWP_NOMOVE = 2;
   SWP_SHOWWINDOW = $40;
 
+var
+  RunId: String;
+
 // Win32 API functions (TRect is already defined in Inno Setup)
 function SetWindowPos(hWnd: HWND; hWndInsertAfter: HWND; X: Integer; Y: Integer;
   cx: Integer; cy: Integer; uFlags: UINT): BOOL;
@@ -81,6 +98,9 @@ function SetWindowPos(hWnd: HWND; hWndInsertAfter: HWND; X: Integer; Y: Integer;
 
 function GetWindowRect(hWnd: HWND; var lpRect: TRect): BOOL;
   external 'GetWindowRect@user32.dll stdcall';
+
+function GetCurrentProcessId(): Integer;
+  external 'GetCurrentProcessId@kernel32.dll stdcall';
 
 procedure InitializeWizard;
 begin
@@ -91,12 +111,32 @@ end;
 
 function InstallLogPath(): String;
 begin
-  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug.log');
+  // Unique per run to avoid file locking and preserve all runs.
+  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug_' + RunId + '.log');
 end;
 
 function InstallPSLogPath(): String;
 begin
-  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug_ps.log');
+  // Unique per run to avoid file locking and preserve all runs.
+  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\installer_debug_ps_' + RunId + '.log');
+end;
+
+function NotificationLogPath(): String;
+begin
+  // Unique per run to avoid file locking and preserve all runs.
+  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\notification_area_icons_installer_' + RunId + '.log');
+end;
+
+function CleanupBootstrapLogPath(): String;
+begin
+  // Captures PowerShell stdout/stderr even if the script fails before it can create its own log.
+  Result := ExpandConstant('{userappdata}\\HebrewFixer\\InstallLogs\\cleanup_bootstrap_' + RunId + '.log');
+end;
+
+function CmdWrapRedirect(ExePath, ExeArgs, OutPath: String): String;
+begin
+  // cmd /c ""<ExePath>" <ExeArgs> 1>>"<OutPath>" 2>>&1"
+  Result := '/c ""' + ExePath + '" ' + ExeArgs + ' 1>>"' + OutPath + '" 2>>&1"';
 end;
 
 procedure LogLine(Msg: String); forward;
@@ -129,18 +169,23 @@ begin
   SaveStringToFile(InstallLogPath(), L, True);
 end;
 
-function CmdWrapPowerShell(PSExe, Args: String): String;
-begin
-  // Robust cmd.exe quoting:
-  // cmd /c ""<PSExe>" <Args> 1>>"<log>" 2>>&1"
-  Result := '/c ""' + PSExe + '" ' + Args + ' 1>>"' + InstallPSLogPath() + '" 2>>&1"';
-end;
+// NOTE: We intentionally do NOT wrap PowerShell via cmd.exe redirection.
+// Instead, we pass -LogPath into the script so it writes installer-friendly logs itself.
 
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
 begin
+  // Create per-run unique ID based on local timestamp + tick suffix.
+  // Use WinAPI GetTickCount via kernel32.dll for uniqueness.
+  RunId := IntToStr(GetCurrentProcessId());
+
   LogLine('InitializeSetup: start | BUILD=DEBUG_LOG_V2');
+  LogLine('InitializeSetup: RunId=' + RunId);
+  LogLine('InitializeSetup: InstallLogPath=' + InstallLogPath());
+  LogLine('InitializeSetup: InstallPSLogPath=' + InstallPSLogPath());
+  LogLine('InitializeSetup: NotificationLogPath=' + NotificationLogPath());
+
   // Kill any running HebrewFixer processes before installation
   Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   LogLine('InitializeSetup: taskkill result=' + IntToStr(ResultCode));
@@ -150,6 +195,7 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ResultCode: Integer;
+  ExecOk: Boolean;
   PSExe: String;
   PSScript: String;
   Args: String;
@@ -158,27 +204,33 @@ begin
   LogLine('CurUninstallStepChanged: step=' + IntToStr(Ord(CurUninstallStep)));
   if CurUninstallStep = usUninstall then
   begin
+    // Initialize per-run RunId for the uninstaller too (InitializeSetup doesn't run here)
+    if RunId = '' then
+      RunId := IntToStr(GetCurrentProcessId());
+
     LogLine('UNINSTALL: entered');
+    LogLine('UNINSTALL: RunId=' + RunId);
+    LogLine('UNINSTALL: InstallPSLogPath=' + InstallPSLogPath());
+    LogLine('UNINSTALL: NotificationLogPath=' + NotificationLogPath());
 
     // Ensure app is not running; otherwise uninstaller may fail to remove files/dirs.
     Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     LogLine('UNINSTALL: taskkill HebrewFixer1998.exe result=' + IntToStr(ResultCode));
 
-    // On uninstall, revert tray promotion unconditionally (uninstall should leave no pinned state behind).
-    // We still keep the marker for install-time decisions, but uninstall always tries to revert.
+    // On uninstall, do REGISTRY-ONLY cleanup. Do NOT launch Settings UI automation.
     PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-    PSScript := ExpandConstant('{app}\\InstallerTools\\PromoteTrayIconInvisible.ps1');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\CleanupNotifyIconSettings.ps1');
     Args :=
       '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-      '-AppName "HebrewFixer1998.exe" -CleanupRegistry ' +
+      '-AppName "HebrewFixer1998.exe" ' +
+      '-Mode Sanitize -DesiredPromoted 0 ' +
       '-LogPath "' + InstallPSLogPath() + '"';
-    LogLine('UNINSTALL: running tray revert');
+    LogLine('UNINSTALL: running registry-only tray cleanup (sanitize)');
     LogLine('UNINSTALL: PSExe=' + PSExe);
     LogLine('UNINSTALL: Args=' + Args);
-    // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
-    Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    LogLine('UNINSTALL: Exec result=' + IntToStr(ResultCode));
-AppendPSLogToMain('UNINSTALL');
+    ExecOk := Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    LogLine('UNINSTALL: Exec ok=' + IntToStr(Ord(ExecOk)) + ' result=' + IntToStr(ResultCode));
+    AppendPSLogToMain('UNINSTALL');
 
     // Best-effort reset marker (key itself is removed by uninsdeletekey).
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\\HebrewFixer', 'TrayVisibleApplied', 0);
@@ -188,6 +240,7 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
+  ExecOk: Boolean;
   ExePath: String;
   PSExe: String;
   PSScript: String;
@@ -203,72 +256,105 @@ begin
     LogLine('POSTINSTALL: trayvisible=' + IntToStr(Ord(WizardIsTaskSelected('trayvisible'))) + ', launchapp=' + IntToStr(Ord(WizardIsTaskSelected('launchapp'))) + ', startup=' + IntToStr(Ord(WizardIsTaskSelected('startup'))));
     ExePath := ExpandConstant('{app}\\HebrewFixer1998.exe');
 
-    // Step 1: Launch HebrewFixer FIRST (hidden) so Windows registers it as a tray app
-    LogLine('INSTALL: Launching HebrewFixer (hidden) to register with Windows...');
-    Exec(ExePath, '/NoTooltip', '', SW_HIDE, ewNoWait, ResultCode);
-    LogLine('INSTALL: HebrewFixer launched (hidden, /NoTooltip), waiting briefly for tray registration...');
-    // Tight wait budget (<= 1s total)
-    Sleep(500);
-    Sleep(500);
+    // Step 0: Registry-only cleanup BEFORE launching the app (reinstall hardening).
+    // This prevents the tray icon from flashing during the brief registration launch.
+    PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\CleanupNotifyIconSettings.ps1');
+    Args :=
+      '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
+      '-AppName "HebrewFixer1998.exe" ' +
+      '-Mode Sanitize -DesiredPromoted 0 ' +
+      '-FailIfCannotLog ' +
+      '-RunId ' + RunId;
+    LogLine('INSTALL: pre-cleanup (registry-only sanitize)');
+    LogLine('INSTALL: PSExe=' + PSExe);
+    LogLine('INSTALL: Args=' + Args);
+    LogLine('INSTALL: CleanupBootstrapLogPath=' + CleanupBootstrapLogPath());
 
-    // Step 2: Run tray icon script (Settings spawns invisibly behind installer)
-    // Pass -HideIcon if checkbox is unchecked
+    // Run via cmd.exe with redirection so we ALWAYS capture errors, even if script logging fails.
+    ExecOk := Exec(ExpandConstant('{sys}\\cmd.exe'), CmdWrapRedirect(PSExe, Args, CleanupBootstrapLogPath()), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    LogLine('INSTALL: pre-cleanup Exec ok=' + IntToStr(Ord(ExecOk)) + ' result=' + IntToStr(ResultCode));
+    AppendPSLogToMain('INSTALL-PRECLEAN');
+
+    // Step 1: Launch HebrewFixer hidden briefly to register the tray entry.
+    LogLine('INSTALL: launching app hidden for tray registration');
+    ExecOk := Exec(ExePath, '/NoTooltip', '', SW_HIDE, ewNoWait, ResultCode);
+    LogLine('INSTALL: registration launch ok=' + IntToStr(Ord(ExecOk)) + ' result=' + IntToStr(ResultCode));
+    Sleep(800);
+
+    // IMPORTANT: Close the registration instance BEFORE any promotion-state changes.
+    Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    LogLine('INSTALL: taskkill HebrewFixer1998.exe (pre-UI) result=' + IntToStr(ResultCode));
+
+    // Step 2: Run tray promotion script.
+    // When HF_ENABLE_UI_AUTOMATION=0, we still run PromoteTrayIconInvisible.ps1 but with -SkipUIAutomation.
     if GetWindowRect(WizardForm.Handle, WinRect) then
     begin
       WinX := WinRect.Left;
       WinY := WinRect.Top;
       WinWidth := WinRect.Right - WinRect.Left;
       WinHeight := WinRect.Bottom - WinRect.Top;
-
-      LogLine('INSTALL: Installer bounds: X=' + IntToStr(WinX) + ', Y=' + IntToStr(WinY) + 
-              ', Width=' + IntToStr(WinWidth) + ', Height=' + IntToStr(WinHeight));
-
-      PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
-      PSScript := ExpandConstant('{app}\\InstallerTools\\PromoteTrayIconInvisible.ps1');
-
-      Args :=
-        '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
-        '-InstallerX ' + IntToStr(WinX) + ' ' +
-        '-InstallerY ' + IntToStr(WinY) + ' ' +
-        '-InstallerWidth ' + IntToStr(WinWidth) + ' ' +
-        '-InstallerHeight ' + IntToStr(WinHeight) + ' ' +
-        '-AppName \"HebrewFixer1998.exe\" -CleanupRegistry';
-
-      // Add -HideIcon if checkbox is unchecked
-      if not WizardIsTaskSelected('trayvisible') then
-      begin
-        Args := Args + ' -HideIcon';
-        LogLine('INSTALL: trayvisible unchecked; will HIDE icon from tray');
-      end
-      else
-      begin
-        LogLine('INSTALL: trayvisible checked; will SHOW icon in tray');
-      end;
-
-      LogLine('INSTALL: PSExe=' + PSExe);
-      LogLine('INSTALL: Args=' + Args);
-
-      // Run via cmd.exe so stdout+stderr are appended to installer_debug.log
-      Exec('cmd.exe', CmdWrapPowerShell(PSExe, Args), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      LogLine('INSTALL: Exec result=' + IntToStr(ResultCode));
-      AppendPSLogToMain('INSTALL');
     end
     else
     begin
-      LogLine('INSTALL: ERROR - GetWindowRect failed, cannot get installer position');
+      // Best-effort fallback (script needs these params even when SkipUIAutomation is set)
+      WinX := 0;
+      WinY := 0;
+      WinWidth := 900;
+      WinHeight := 600;
+      LogLine('INSTALL: WARN - GetWindowRect failed, using fallback installer bounds');
     end;
 
-    // Step 3: If user wants app visible, bring it to foreground (it's already running from Step 1)
-    if WizardIsTaskSelected('launchapp') then
+    LogLine('INSTALL: Installer bounds: X=' + IntToStr(WinX) + ', Y=' + IntToStr(WinY) +
+            ', Width=' + IntToStr(WinWidth) + ', Height=' + IntToStr(WinHeight));
+
+    PSExe := ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe');
+    PSScript := ExpandConstant('{app}\\InstallerTools\\PromoteTrayIconInvisible.ps1');
+
+    Args :=
+      '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + PSScript + '" ' +
+      '-InstallerX ' + IntToStr(WinX) + ' ' +
+      '-InstallerY ' + IntToStr(WinY) + ' ' +
+      '-InstallerWidth ' + IntToStr(WinWidth) + ' ' +
+      '-InstallerHeight ' + IntToStr(WinHeight) + ' ' +
+      '-AppName "HebrewFixer1998.exe" -CleanupRegistry ' +
+      '-LogPath "' + NotificationLogPath() + '"';
+
+#if HF_ENABLE_UI_AUTOMATION
+    LogLine('INSTALL: HF_ENABLE_UI_AUTOMATION=1 (full UI automation enabled)');
+#else
+    Args := Args + ' -SkipUIAutomation';
+    LogLine('INSTALL: HF_ENABLE_UI_AUTOMATION=0 (SkipUIAutomation enabled)');
+#endif
+
+    // Add -HideIcon if checkbox is unchecked
+    if not WizardIsTaskSelected('trayvisible') then
     begin
-      LogLine('INSTALL: User wants app visible - it is already running from registration step');
-      // App is already running from Step 1, no need to launch again
+      Args := Args + ' -HideIcon';
+      LogLine('INSTALL: trayvisible unchecked; will HIDE icon from tray');
     end
     else
     begin
-      LogLine('INSTALL: User does NOT want app visible - killing the registration instance');
-      // User didn't check "Launch now", so kill the hidden instance we started for registration
-      Exec('taskkill.exe', '/F /IM HebrewFixer1998.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      LogLine('INSTALL: trayvisible checked; will SHOW icon in tray');
+    end;
+
+    LogLine('INSTALL: PSExe=' + PSExe);
+    LogLine('INSTALL: Args=' + Args);
+
+    ExecOk := Exec(PSExe, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    LogLine('INSTALL: Exec ok=' + IntToStr(Ord(ExecOk)) + ' result=' + IntToStr(ResultCode));
+    AppendPSLogToMain('INSTALL');
+
+    // Step 3: Launch the app only if requested.
+    if WizardIsTaskSelected('launchapp') then
+    begin
+      LogLine('INSTALL: User wants app visible - launching now');
+      ExecOk := Exec(ExePath, '/NoTooltip', '', SW_SHOW, ewNoWait, ResultCode);
+      LogLine('INSTALL: app launch ok=' + IntToStr(Ord(ExecOk)) + ' result=' + IntToStr(ResultCode));
+    end
+    else
+    begin
+      LogLine('INSTALL: User does NOT want app visible - not launching');
     end;
   end;
 end;

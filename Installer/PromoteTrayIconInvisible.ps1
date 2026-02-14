@@ -38,6 +38,9 @@ param(
     # If set, sanitize existing NotifyIconSettings promoted values for this app before UI automation.
     [switch]$CleanupRegistry = $false,
 
+    # When set, perform registry sanitization only and skip Settings GUI + UI automation.
+    [switch]$SkipUIAutomation = $false,
+
     # Optional extra debug logging.
     [switch]$DebugMode = $false,
     
@@ -165,23 +168,53 @@ if ($DebugLogPath) { Write-LogLine "DebugLogPath: $DebugLogPath" -Level INFO }
 Write-LogLine "==============================================================================" -Level INFO
 
 try {
+    # PRE-STEP: cleanup old NotifyIconSettings promotion bits BEFORE any UI automation.
+    # This is important on reinstall scenarios so the tray icon doesn't pop up during install.
+    if ($CleanupRegistry) {
+        $desired = if ($HideIcon) { 0 } else { 1 }
+        Write-LogLine "CleanupRegistry enabled: sanitizing NotifyIconSettings early (desired=$desired)" -Level STEP
+        Sanitize-NotifyIconSettings -AppName $AppName -DesiredPromoted $desired
+    }
+
+    if ($SkipUIAutomation) {
+        Write-LogLine "SkipUIAutomation enabled: registry work complete, skipping Settings/UI automation." -Level OK
+        exit 0
+    }
+
     # Step 1: Set Settings window position to match installer (size) and be centered like installer
     Write-LogLine "Setting Settings window registry position (centered; sized like installer)..."
 
     $posPath = "HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\windows.immersivecontrolpanel_cw5n1h2txyewy\ApplicationFrame\windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"
     
     # Backup original position
+    Write-LogLine ("Settings Positions target key: {0}" -f $posPath) -Level INFO
+    $posKeyExistsBeforeRead = Test-Path -LiteralPath $posPath
+    Write-LogLine ("Positions key exists before read: {0}" -f $posKeyExistsBeforeRead) -Level DEBUG
+
     $backup = (Get-ItemProperty -Path $posPath -Name "Positions" -ErrorAction SilentlyContinue).Positions
+    if ($backup) {
+        Write-LogLine ("Positions value exists before read: True | len={0} | type={1}" -f $backup.Length, $backup.GetType().FullName) -Level DEBUG
+    } else {
+        Write-LogLine "Positions value exists before read: False" -Level WARN
+    }
+
+    $minBackup = (Get-ItemProperty -Path $posPath -Name "PreferredMinSize" -ErrorAction SilentlyContinue).PreferredMinSize
+    if ($minBackup) {
+        Write-LogLine ("PreferredMinSize exists before read: True | len={0} | type={1}" -f $minBackup.Length, $minBackup.GetType().FullName) -Level DEBUG
+    } else {
+        Write-LogLine "PreferredMinSize exists before read: False" -Level WARN
+    }
     
     # Create WINDOWPLACEMENT with installer coordinates
     $matchedPos = [byte[]]::new(44)
     
-    # Copy header from original or use defaults
-    if ($backup) {
+    # Copy header from original or use a known-good template.
+    # On some systems the Positions value may not exist yet; a valid 44-byte template prevents malformed blobs.
+    $template = [byte[]]@(44,0,0,0,0,0,0,0,1,0,0,0,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,240,216,255,255,240,216,255,255,185,219,255,255,196,218,255,255)
+    if ($backup -and $backup.Length -ge 44) {
         [Array]::Copy($backup, 0, $matchedPos, 0, 28)
     } else {
-        $matchedPos[0] = 44  # length
-        $matchedPos[8] = 1   # showCmd = SW_SHOWNORMAL
+        [Array]::Copy($template, 0, $matchedPos, 0, 28)
     }
 
     # DEBUG MODE: Offset Settings 600px to the LEFT so we can see what it's doing
@@ -200,6 +233,27 @@ try {
     [Array]::Copy([BitConverter]::GetBytes($right), 0, $matchedPos, 36, 4)
     [Array]::Copy([BitConverter]::GetBytes($bottom), 0, $matchedPos, 40, 4)
     
+    # Ensure the key exists before writing
+    $posKeyExists = Test-Path -LiteralPath $posPath
+    Write-LogLine ("Positions key exists before write: {0} | posPath={1}" -f $posKeyExists, $posPath) -Level DEBUG
+    if (-not $posKeyExists) {
+        Write-LogLine "Positions key missing; creating it" -Level WARN
+        New-Item -Path $posPath -Force | Out-Null
+    }
+
+    # Log which seeding strategy was used
+    if (-not $backup) {
+        Write-LogLine "Positions backup missing; seeding header from embedded 44-byte template" -Level WARN
+    } elseif ($backup.Length -lt 44) {
+        Write-LogLine ("Positions backup too small (len={0}); seeding header from embedded 44-byte template" -f $backup.Length) -Level WARN
+    } else {
+        Write-LogLine ("Positions backup found (len={0}); copying header from existing Positions" -f $backup.Length) -Level DEBUG
+    }
+
+    # Log first bytes we are about to write (diagnostic)
+    $hexPreview = ($matchedPos | Select-Object -First 16 | ForEach-Object { $_.ToString('X2') }) -join ' '
+    Write-LogLine ("Positions write preview (first 16 bytes): {0} | totalLen={1}" -f $hexPreview, $matchedPos.Length) -Level DEBUG
+
     Set-ItemProperty -Path $posPath -Name "Positions" -Value $matchedPos -Type Binary
     Write-LogLine "Settings position set (centered; sized like installer)" -Level OK
     
@@ -209,7 +263,7 @@ try {
     if ($existing) {
         Write-LogLine "Found $($existing.Count) existing SystemSettings process(es), killing..." -Level WARN
         $existing | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 250
+        Start-Sleep -Milliseconds 500
     } else {
         Write-LogLine "No existing SystemSettings processes found (good)"
     }

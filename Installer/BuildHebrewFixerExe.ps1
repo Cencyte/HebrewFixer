@@ -5,6 +5,10 @@ param(
     [string]$AhkScript = (Join-Path $PSScriptRoot '..\src\Current Version\HebrewFixer_BiDiPaste.ahk'),
     [string]$OutExe = (Join-Path $PSScriptRoot '..\bin\HebrewFixer.exe'),
 
+    # Bakes the app icon into the compiled EXE resources (this is NOT the runtime tray icon).
+    # Default: your Affinity-style icon.
+    [string]$IconFile = (Join-Path $PSScriptRoot '..\Icon\ICOs\hebrew_fixer_affinity_on.ico'),
+
     # IMPORTANT: For v2 compilation, BaseFile must be AutoHotkey64.exe / AutoHotkey32.exe from the v2 install folder.
     [string]$BaseFile = 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe'
 )
@@ -19,6 +23,7 @@ function Log($msg) {
 Log "Ahk2ExePath=$Ahk2ExePath"
 Log "AhkScript=$AhkScript"
 Log "OutExe=$OutExe"
+Log "IconFile=$IconFile"
 Log "BaseFile=$BaseFile"
 
 if (-not (Test-Path -LiteralPath $Ahk2ExePath)) {
@@ -26,6 +31,9 @@ if (-not (Test-Path -LiteralPath $Ahk2ExePath)) {
 }
 if (-not (Test-Path -LiteralPath $AhkScript)) {
     throw "AHK script not found at: $AhkScript"
+}
+if (-not (Test-Path -LiteralPath $IconFile)) {
+    throw "Icon file not found at: $IconFile"
 }
 if (-not (Test-Path -LiteralPath $BaseFile)) {
     throw "AutoHotkey v2 base file not found at: $BaseFile"
@@ -44,10 +52,11 @@ if (-not (Test-Path -LiteralPath $outDir)) {
 # Ahk2Exe is sensitive to spaces in paths; pass a single, explicitly quoted argument string.
 $ahkScriptFull = (Resolve-Path -LiteralPath $AhkScript).Path
 $outExeFull = Join-Path -Path (Resolve-Path -LiteralPath $outDir).Path -ChildPath (Split-Path -Leaf $OutExe)
+$iconFull = (Resolve-Path -LiteralPath $IconFile).Path
 $baseFull = (Resolve-Path -LiteralPath $BaseFile).Path
 
 # /silent verbose makes Ahk2Exe print useful diagnostics in the console.
-$argString = "/in `"$ahkScriptFull`" /out `"$outExeFull`" /base `"$baseFull`" /silent verbose"
+$argString = "/in `"$ahkScriptFull`" /out `"$outExeFull`" /icon `"$iconFull`" /base `"$baseFull`" /silent verbose"
 
 Log "Running: `"$Ahk2ExePath`" $argString"
 

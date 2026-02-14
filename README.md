@@ -139,19 +139,23 @@ Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```
 HebrewFixer/
-├── bin/                    # Compiled executables
-│   ├── HebrewFixer.exe
-│   └── HebrewFixer_Setup.exe
 ├── Icon/
-│   ├── ICOs/              # Icon files (.ico)
-│   └── Images/            # Source images (.png, .svg)
+│   ├── ICOs/               # Icon files (.ico)
+│   └── Images/             # Source images (.png, .svg)
 ├── Installer/
-│   └── HebrewFixer_Setup.iss
+│   ├── BuildHebrewFixerExe.ps1
+│   ├── HebrewFixer_Setup.iss
+│   └── *.ps1               # Installer helper scripts
+├── Tests/
+│   └── Win11/
+│       └── PromoteTrayIconInvisible.ps1  # Input for installer build
+├── native/
+│   └── HookTray/            # Optional native experiments
 ├── src/
 │   ├── Current Version/
 │   │   └── HebrewFixer_BiDiPaste.ahk
-│   └── Legacy/            # Previous versions
-├── .rovodev/              # Development documentation
+│   └── Previous Versions/   # Archived AHK variants
+├── .gitignore
 └── README.md
 ```
 
@@ -190,6 +194,5 @@ MIT License – see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Created for Sara, who needed Hebrew typography in Affinity Designer
 - Built with [AutoHotkey v2](https://www.autohotkey.com/)
 - Icons designed with [Affinity Designer](https://affinity.serif.com/designer/)

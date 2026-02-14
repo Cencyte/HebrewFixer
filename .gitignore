@@ -4,6 +4,9 @@
 !.rovodev/*.md
 !.rovodev/**/*.md
 
+# Build outputs (do not commit)
+bin/
+
 # Temporary working files
 Tmp/
 *.tmp
