@@ -1,33 +1,59 @@
 ; =============================================================================
-; HebrewFixer for Affinity Designer - Per-Key Intercept v2
+; HebrewFixer - Affinity Designer BiDi workaround (Per-Key + Clipboard)
 ; =============================================================================
-;
-; TRUE keystroke interception using physical key mappings.
-; O(1) insertion - no accordion effect. Each char is inserted at the
-; beginning of the line, creating proper RTL visual flow.
-;
-; TOGGLE: Ctrl+Alt+H
-;
-; =============================================================================
-
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 SendMode("Input")
 SetKeyDelay(-1, -1)
 
-; =============================================================================
-; GLOBALS
-; =============================================================================
+; -------------------- constants --------------------
+global HF_VERSION := "0.9.0-dev"
+global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
 
+; Default toggle hotkey (store AHK syntax internally; show human string in UI)
+global HF_DEFAULT_TOGGLE_HOTKEY_AHK := "^!h"
+global HF_DEFAULT_TOGGLE_HOTKEY_HUMAN := "Ctrl+Alt+H"
+
+; -------------------- runtime state --------------------
 global g_Enabled := false
-global g_Buffer := ""
-global g_AutoEnable := true   ; Auto-enable when Hebrew IME is detected (on by default)
-global g_ManualOverride := false  ; True when user manually toggled (overrides auto)
-global g_LastIMEState := false  ; Track IME state to detect changes
+global g_Buffer := ""  ; (legacy)
+
+; Debug feature: Undo buffer (Ctrl+Z sends the correct number of undos)
+global g_UndoBufferEnabled := false
+; Stack of undo "cost" per tracked keystroke:
+; - 1 for normal keystrokes
+; - 2 for RTL-injected Hebrew keystrokes (char + caret move)
+global g_UndoStack := []
+; Single-level redo snapshot for the debug undo buffer feature.
+; When Ctrl+Z consumes the whole buffer, we save its costs here so Ctrl+Y can restore it.
+global g_LastUndoSnapshot := []
+
+
+global g_AutoEnable := true
+global g_AutoEnableAllApps := false
+global g_Whitelist := Map()  ; procName -> true
+
+global g_ManualOverride := false
+; When manual override is active, this is the preferred Enabled state when NOT focused on a whitelisted app.
+global g_ManualOverrideEnabled := false
+
+global g_LastIMEState := false
+global g_LastActiveHwnd := 0
+
 global g_NoTooltip := false
 
+global g_ToggleHotkey := HF_DEFAULT_TOGGLE_HOTKEY_AHK
+
+global g_CheckUpdatesOnStartup := true
+
+global g_ConfigDir := ""
+global g_ConfigIni := ""
+
+global g_UpdateMenuLabel := ""
+
+global g_GithubRepoUrl := "https://github.com/Cencyte/HebrewFixer"
+
 ; Hebrew keyboard layout mapping (US QWERTY physical keys → Hebrew chars)
-; Based on standard Israeli Hebrew keyboard layout
 global HebrewMap := Map(
     "t", "א",
     "c", "ב",
@@ -40,18 +66,18 @@ global HebrewMap := Map(
     "y", "ט",
     "h", "י",
     "l", "כ",
-    "f", "ך",  ; final kaf
+    "f", "ך",
     "k", "ל",
     "n", "מ",
-    "o", "ם",  ; final mem
+    "o", "ם",
     "b", "נ",
-    "i", "ן",  ; final nun
+    "i", "ן",
     "x", "ס",
     "g", "ע",
     "p", "פ",
-    ";", "ף",  ; final pe
+    ";", "ף",
     "m", "צ",
-    ".", "ץ",  ; final tsadi
+    ".", "ץ",
     "e", "ק",
     "r", "ר",
     "a", "ש",
@@ -59,44 +85,45 @@ global HebrewMap := Map(
 )
 
 ; =============================================================================
-; INITIALIZATION
+; INIT
 ; =============================================================================
 
-; Check for command-line arguments
+InitConfigPaths()
+LoadSettings()
+
 for arg in A_Args {
     if (arg = "/NoTooltip" || arg = "-NoTooltip" || arg = "--NoTooltip") {
         g_NoTooltip := true
         continue
     }
     if (arg = "/exit" || arg = "-exit" || arg = "--exit") {
-        ; Signal existing instance to exit by sending WM_CLOSE
         DetectHiddenWindows(true)
-        if WinExist("HebrewFixer ahk_class AutoHotkey") {
-            PostMessage(0x10, 0, 0)  ; WM_CLOSE = 0x10
-        }
+        if WinExist("HebrewFixer ahk_class AutoHotkey")
+            PostMessage(0x10, 0, 0)
         ExitApp()
     }
 }
 
-; Register cleanup handler for graceful exit
 OnExit(CleanupBeforeExit)
 
-SetupTray()
-ShowTip("HebrewFixer (Per-Key v2) loaded`nCtrl+Alt+H to toggle", A_ScreenWidth // 2 - 120, 50, 2500)
+; React instantly to keyboard layout changes (more reliable than polling alone)
+OnMessage(0x51, WM_INPUTLANGCHANGE)  ; WM_INPUTLANGCHANGE
 
-; Start auto-enable timer (checks every 250ms)
+SetupTray()
+RegisterToggleHotkey(g_ToggleHotkey)
+
+if g_CheckUpdatesOnStartup
+    SetTimer(CheckForUpdatesOnStartup, -750)
+
+ShowTip("HebrewFixer loaded`n" . HotkeyHumanReadable(g_ToggleHotkey) . " to toggle", A_ScreenWidth // 2 - 160, 50, 2200)
 SetTimer(CheckAutoEnable, 250)
 
-; Cleanup function - ensures clean exit
-CleanupBeforeExit(ExitReason, ExitCode) {
-    ; AHK automatically removes tray icon on normal exit
-    ; Just ensure timers are stopped
+CleanupBeforeExit(*) {
     SetTimer(CheckAutoEnable, 0)
-    return 0  ; Allow exit to proceed
 }
 
 ; =============================================================================
-; TOOLTIP HELPERS
+; UI helpers
 ; =============================================================================
 
 ShowTip(msg, x := unset, y := unset, durationMs := 1500) {
@@ -110,532 +137,1739 @@ ShowTip(msg, x := unset, y := unset, durationMs := 1500) {
     SetTimer(() => ToolTip(), -durationMs)
 }
 
+LooksLikeHumanHotkey(s) {
+    s := Trim(s)
+    if (s = "")
+        return false
+    ; If it contains words like Ctrl/Alt/Shift/Win with + separators, treat as human.
+    return RegExMatch(s, "i)\\b(ctrl|control|alt|shift|win|windows)\\b")
+}
+
+HotkeyHumanReadable(hk) {
+    ; If it's already human-friendly, don't try to re-format.
+    if LooksLikeHumanHotkey(hk)
+        return hk
+
+    s := Trim(hk)
+    if (s = "")
+        return ""
+
+    mods := []
+
+    ; Parse leading AHK modifier symbols (order-insensitive).
+    while (StrLen(s) > 0) {
+        ch := SubStr(s, 1, 1)
+        if (ch = "^") {
+            mods.Push("Ctrl")
+        } else if (ch = "!") {
+            mods.Push("Alt")
+        } else if (ch = "+") {
+            mods.Push("Shift")
+        } else if (ch = "#") {
+            mods.Push("Win")
+        } else {
+            break
+        }
+        s := SubStr(s, 2)
+    }
+
+    key := s
+    if (key = "")
+        key := "?"
+
+    ; Normalize display casing
+    if (StrLen(key) = 1)
+        key := StrUpper(key)
+
+    ; De-duplicate while preserving order
+    seen := Map()
+    out := ""
+    for _, m in mods {
+        if !seen.Has(m) {
+            seen[m] := true
+            out .= m . "+"
+        }
+    }
+
+    return out . key
+}
+
+HumanHotkeyToAhk(human) {
+    ; Accept: Ctrl+Alt+H, Control+Alt+H, Win+Shift+Z, etc.
+    ; Also accept already-AHK-looking strings like ^!h.
+
+    s := Trim(human)
+    if (s = "")
+        throw Error("Empty hotkey")
+
+    ; If user already typed AHK syntax, accept it.
+    ; (Human-friendly strings like "Alt+Shift+H" also contain "+", so only treat it as AHK
+    ; if it *starts* with AHK modifier symbols.)
+    if RegExMatch(s, "^[\^!\+#]")
+        return s
+
+    parts := StrSplit(s, "+")
+    mods := ""
+    key := ""
+
+    for _, p in parts {
+        p := Trim(p)
+        if (p = "")
+            continue
+
+        pU := StrUpper(p)
+        if (pU = "CTRL" || pU = "CONTROL") {
+            if !InStr(mods, "^")
+                mods .= "^"
+            continue
+        }
+        if (pU = "ALT") {
+            if !InStr(mods, "!")
+                mods .= "!"
+            continue
+        }
+        if (pU = "SHIFT") {
+            if !InStr(mods, "+")
+                mods .= "+"
+            continue
+        }
+        if (pU = "WIN" || pU = "WINDOWS") {
+            if !InStr(mods, "#")
+                mods .= "#"
+            continue
+        }
+
+        ; remainder is key
+        key := p
+    }
+
+    if (key = "")
+        throw Error("Missing key")
+
+    ; Normalize some key names
+    keyU := StrUpper(key)
+    if (StrLen(key) = 1) {
+        key := StrLower(key)
+    } else if RegExMatch(keyU, "^F\d{1,2}$") {
+        key := keyU
+    } else if (keyU = "ESC" || keyU = "ESCAPE") {
+        key := "Esc"
+    } else if (keyU = "ENTER" || keyU = "RETURN") {
+        key := "Enter"
+    } else if (keyU = "TAB") {
+        key := "Tab"
+    } else if (keyU = "SPACE") {
+        key := "Space"
+    } else {
+        ; Let AHK try to interpret it as a key name.
+        key := key
+    }
+
+    return mods . key
+}
+
+CaptureHotkeyHuman() {
+    ; Records a shortcut as:
+    ; - user may tap modifiers in any order (Ctrl/Alt/Shift/Win)
+    ; - recording ends when a non-modifier key is pressed
+    ; - Esc cancels
+
+    ih := InputHook("L1")
+    ih.KeyOpt("{All}", "E")
+    ih.Timeout := 15
+
+    ; Map EndKey -> canonical modifier name
+    modMap := Map(
+        "LShift", "Shift", "RShift", "Shift", "Shift", "Shift",
+        "LCtrl", "Ctrl", "RCtrl", "Ctrl", "Ctrl", "Ctrl",
+        "LAlt", "Alt", "RAlt", "Alt", "Alt", "Alt",
+        "LWin", "Win", "RWin", "Win"
+    )
+
+    selected := Map()  ; canonical modifier -> true
+
+    Loop {
+        ih.Start()
+        ih.Wait()
+
+        if (ih.EndReason = "Timeout")
+            return ""
+
+        k := ih.EndKey
+        if (k = "Escape" || k = "Esc")
+            return ""
+
+        if modMap.Has(k) {
+            m := modMap[k]
+            ; Toggle modifier (tap again to remove)
+            if selected.Has(m)
+                selected.Delete(m)
+            else
+                selected[m] := true
+            continue
+        }
+
+        ; Non-modifier key terminates recording.
+        break
+    }
+
+    ; Normalize key name for display
+    if (StrLen(k) = 1) {
+        key := StrUpper(k)
+    } else if (k = "Return") {
+        key := "Enter"
+    } else {
+        key := k
+    }
+
+    ; Ordered modifiers for readability
+    order := ["Ctrl", "Alt", "Shift", "Win"]
+    out := ""
+    for _, m in order {
+        if selected.Has(m)
+            out .= m . "+"
+    }
+
+    return out . key
+}
+
 ; =============================================================================
-; TRAY
+; CONFIG (EnvGet + UTF-8 INI normalization)
+; =============================================================================
+
+InitConfigPaths() {
+    global g_ConfigDir, g_ConfigIni
+
+    appData := EnvGet("APPDATA")
+    localAppData := EnvGet("LOCALAPPDATA")
+
+    ; prefer roaming
+    g_ConfigDir := appData . "\HebrewFixer"
+
+    try {
+        if !DirExist(g_ConfigDir)
+            DirCreate(g_ConfigDir)
+        FileAppend("", g_ConfigDir . "\.write_test", "UTF-8")
+        FileDelete(g_ConfigDir . "\.write_test")
+    } catch {
+        g_ConfigDir := localAppData . "\HebrewFixer"
+        if !DirExist(g_ConfigDir)
+            DirCreate(g_ConfigDir)
+    }
+
+    g_ConfigIni := g_ConfigDir . "\settings.ini"
+
+    ; Migrate any legacy encodings and normalize to UTF-8 without BOM.
+    NormalizeIniEncoding()
+
+    try FileAppend("[" . FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss") . "] ConfigDir=" . g_ConfigDir . " | Ini=" . g_ConfigIni . "`n", g_ConfigDir . "\hf_startup.log", "UTF-8")
+}
+
+LoadSettings() {
+    global g_ConfigIni
+    global g_AutoEnable, g_AutoEnableAllApps, g_ToggleHotkey, g_CheckUpdatesOnStartup
+
+    firstRun := !FileExist(g_ConfigIni)
+
+    g_AutoEnable := IniRead(g_ConfigIni, "General", "AutoEnable", "1") = "1"
+    g_AutoEnableAllApps := IniRead(g_ConfigIni, "General", "AutoEnableAllApps", "0") = "1"
+
+    hkRaw := IniRead(g_ConfigIni, "General", "ToggleHotkey", HF_DEFAULT_TOGGLE_HOTKEY_AHK)
+    ; Migration: if the INI contains a human-style hotkey (Ctrl+Alt+H), convert it to AHK syntax.
+    try {
+        g_ToggleHotkey := LooksLikeHumanHotkey(hkRaw) ? HumanHotkeyToAhk(hkRaw) : hkRaw
+    } catch {
+        g_ToggleHotkey := HF_DEFAULT_TOGGLE_HOTKEY_AHK
+    }
+
+    g_CheckUpdatesOnStartup := IniRead(g_ConfigIni, "General", "CheckUpdatesOnStartup", "1") = "1"
+
+    LoadWhitelistFromIni()
+
+    if firstRun {
+        SaveSettings()
+    } else {
+        ; If we migrated the hotkey, persist it in AHK syntax.
+        if (g_ToggleHotkey != hkRaw)
+            SaveSettings()
+    }
+}
+
+SaveSettings() {
+    global g_ConfigIni
+    global g_AutoEnable, g_AutoEnableAllApps, g_ToggleHotkey, g_CheckUpdatesOnStartup
+
+    IniWrite(g_AutoEnable ? "1" : "0", g_ConfigIni, "General", "AutoEnable")
+    IniWrite(g_AutoEnableAllApps ? "1" : "0", g_ConfigIni, "General", "AutoEnableAllApps")
+    IniWrite(g_ToggleHotkey, g_ConfigIni, "General", "ToggleHotkey")
+    IniWrite(g_CheckUpdatesOnStartup ? "1" : "0", g_ConfigIni, "General", "CheckUpdatesOnStartup")
+
+    SaveWhitelistToIni()
+
+    ; keep human-editable
+    NormalizeIniEncoding()
+}
+
+LoadWhitelistFromIni() {
+    global g_ConfigIni, g_Whitelist
+    g_Whitelist := Map()
+
+    raw := IniRead(g_ConfigIni, "Whitelist", "Processes", "")
+    raw := StrReplace(raw, "`r", "")
+
+    for _, line in StrSplit(raw, "`n") {
+        p := Trim(line)
+        if (p != "")
+            g_Whitelist[p] := true
+    }
+
+    ; Defaults (no-config). Also include Sara's Designer.exe
+    ; (installed at C:\Program Files\Affinity\Designer\Designer.exe)
+    if (g_Whitelist.Count = 0) {
+        g_Whitelist["AffinityDesigner.exe"] := true
+        g_Whitelist["AffinityPhoto.exe"] := true
+        g_Whitelist["AffinityPublisher.exe"] := true
+        g_Whitelist["Designer.exe"] := true
+    } else {
+        ; Non-destructive migration: ensure Designer.exe is present for Sara.
+        if !g_Whitelist.Has("Designer.exe")
+            g_Whitelist["Designer.exe"] := true
+    }
+}
+
+SaveWhitelistToIni() {
+    global g_ConfigIni, g_Whitelist
+    raw := ""
+    for proc, _ in g_Whitelist
+        raw .= proc . "`n"
+    raw := RTrim(raw, "`n")
+    IniWrite(raw, g_ConfigIni, "Whitelist", "Processes")
+}
+
+; Ensure settings.ini is UTF-8 without BOM (and convert UTF-16LE if needed).
+NormalizeIniEncoding() {
+    global g_ConfigIni
+
+    if !FileExist(g_ConfigIni)
+        return
+
+    try buf := FileRead(g_ConfigIni, "RAW")
+    catch {
+        return
+    }
+
+    ; detect UTF-16LE by NUL bytes
+    isUtf16 := false
+    Loop buf.Size {
+        if (NumGet(buf, A_Index - 1, "UChar") = 0) {
+            isUtf16 := true
+            break
+        }
+    }
+
+    try txt := isUtf16 ? StrGet(buf, "UTF-16") : StrGet(buf, "UTF-8")
+    catch {
+        return
+    }
+
+    ; Strip any leading U+FEFF characters
+    while (SubStr(txt, 1, 1) = Chr(0xFEFF))
+        txt := SubStr(txt, 2)
+
+    ; For UTF-8, also strip repeated UTF-8 BOM bytes if present.
+    if !isUtf16 {
+        start := 0
+        while (buf.Size - start >= 3
+            && NumGet(buf, start, "UChar") = 0xEF
+            && NumGet(buf, start+1, "UChar") = 0xBB
+            && NumGet(buf, start+2, "UChar") = 0xBF) {
+            start += 3
+        }
+        if (start > 0) {
+            try txt := StrGet(SubBuffer(buf, start, buf.Size - start), "UTF-8")
+            catch {
+                return
+            }
+            while (SubStr(txt, 1, 1) = Chr(0xFEFF))
+                txt := SubStr(txt, 2)
+        }
+    }
+
+    ; Write back as UTF-8 without BOM.
+    try {
+        FileDelete(g_ConfigIni)
+        FileAppend(txt, g_ConfigIni, "UTF-8-RAW")
+    } catch {
+        return
+    }
+}
+
+SubBuffer(buf, offset, size) {
+    nb := Buffer(size)
+    DllCall("RtlMoveMemory", "Ptr", nb.Ptr, "Ptr", buf.Ptr + offset, "UPtr", size)
+    return nb
+}
+
+; =============================================================================
+; TRAY + SETTINGS
 ; =============================================================================
 
 SetupTray() {
     A_TrayMenu.Delete()
-    A_TrayMenu.Add("Toggle Hebrew RTL (Ctrl+Alt+H)", (*) => ToggleMode())
+
+    A_TrayMenu.Add("Toggle Hebrew RTL (" . HotkeyHumanReadable(g_ToggleHotkey) . ")", (*) => ToggleMode())
     A_TrayMenu.Add()
+
     A_TrayMenu.Add("Auto-enable on Hebrew keyboard", (*) => ToggleAutoEnable())
+    A_TrayMenu.Add("Auto-enable: All apps", (*) => ToggleAllApps())
+    A_TrayMenu.Add("Settings…", (*) => ShowSettingsGui())
+
     A_TrayMenu.Add()
-    A_TrayMenu.Add("Show Buffer (Debug)", (*) => ShowDebug())
+    A_TrayMenu.Add("Copy diagnostic info", (*) => CopyDiagnosticInfo())
+    A_TrayMenu.Add("Debug: Undo buffer (Ctrl+Z clears run)", (*) => ToggleUndoBuffer())
+
+    A_TrayMenu.Add()
     A_TrayMenu.Add("Exit", (*) => ExitApp())
+
     UpdateTray()
+}
+
+UpdateTray() {
+    global g_Enabled, g_AutoEnable, g_AutoEnableAllApps
+
+    if g_AutoEnable
+        A_TrayMenu.Check("Auto-enable on Hebrew keyboard")
+    else
+        A_TrayMenu.Uncheck("Auto-enable on Hebrew keyboard")
+
+    if g_AutoEnableAllApps
+        A_TrayMenu.Check("Auto-enable: All apps")
+    else
+        A_TrayMenu.Uncheck("Auto-enable: All apps")
+
+    if g_UndoBufferEnabled
+        A_TrayMenu.Check("Debug: Undo buffer (Ctrl+Z clears run)")
+    else
+        A_TrayMenu.Uncheck("Debug: Undo buffer (Ctrl+Z clears run)")
+
+    A_IconTip := "HebrewFixer: " . (g_Enabled ? "ON" : "OFF")
+    if g_AutoEnable
+        A_IconTip .= " [Auto" . (g_AutoEnableAllApps ? ":All]" : ":Whitelist]")
+
+    ; When running as a raw .ahk script, the icon isn't embedded like the compiled EXE.
+    ; Use repo icons (relative to this file: src\Current Version -> ..\..\Icon\ICOs).
+    iconDir := A_ScriptDir . "\\..\\..\\Icon\\ICOs\\"
+
+    ; Prefer Affinity-branded icons.
+    onIco := iconDir . "hebrew_fixer_affinity_on.ico"
+    offIco := iconDir . "hebrew_fixer_affinity_off.ico"
+    ; Fallback to generic icons if needed.
+    if !FileExist(onIco)
+        onIco := iconDir . "hebrew_fixer_on.ico"
+    if !FileExist(offIco)
+        offIco := iconDir . "hebrew_fixer_off.ico"
+
+    try TraySetIcon(g_Enabled ? onIco : offIco)
+    catch {
+        ; ignore
+    }
 }
 
 ToggleAutoEnable() {
     global g_AutoEnable
     g_AutoEnable := !g_AutoEnable
+    SaveSettings()
     UpdateTray()
-    ShowTip("Auto-enable: " . (g_AutoEnable ? "ON" : "OFF"), A_ScreenWidth // 2 - 60, 50, 1500)
 }
 
-CheckAutoEnable() {
-    global g_AutoEnable, g_Enabled, g_ManualOverride, g_LastIMEState
-    
-    ; Only act if auto-enable is turned on
-    if !g_AutoEnable
-        return
-    
-    ; Check if Hebrew keyboard is active
-    isHebrew := IsHebrewKeyboard()
-    
-    ; If IME state changed, clear manual override (user switched keyboard)
-    if (isHebrew != g_LastIMEState) {
-        g_ManualOverride := false
-        g_LastIMEState := isHebrew
-    }
-    
-    ; If user manually overrode, don't auto-toggle
-    if g_ManualOverride
-        return
-    
-    ; Auto-toggle based on IME
-    if (isHebrew && !g_Enabled) {
-        g_Enabled := true
-        UpdateTray()
-    } else if (!isHebrew && g_Enabled) {
-        g_Enabled := false
-        UpdateTray()
-    }
+ToggleAllApps() {
+    global g_AutoEnableAllApps
+    g_AutoEnableAllApps := !g_AutoEnableAllApps
+    SaveSettings()
+    UpdateTray()
 }
 
-UpdateTray() {
-    global g_Enabled, g_AutoEnable
-    
-    ; Update checkmark for auto-enable menu item
-    if g_AutoEnable
-        A_TrayMenu.Check("Auto-enable on Hebrew keyboard")
-    else
-        A_TrayMenu.Uncheck("Auto-enable on Hebrew keyboard")
-    
-    ; Update icon and tooltip
-    A_IconTip := "HebrewFixer: " . (g_Enabled ? "ON" : "OFF") . (g_AutoEnable ? " [Auto]" : "")
-    
-    ; Use custom Shin icons from Desktop (or script directory)
-    iconPath := A_ScriptDir . "\"
+ToggleUndoBuffer() {
+    global g_UndoBufferEnabled
+    g_UndoBufferEnabled := !g_UndoBufferEnabled
+    ClearUndoBuffer()
+    UpdateTray()
+    ShowTip("Undo buffer: " . (g_UndoBufferEnabled ? "ON" : "OFF"), A_ScreenWidth // 2 - 120, 50, 1500)
+}
+
+ClearUndoBuffer() {
+    global g_UndoStack, g_LastUndoSnapshot
+    g_UndoStack := []
+    g_LastUndoSnapshot := []
+}
+
+TrackUndoKey(paired := false) {
+    global g_UndoBufferEnabled, g_UndoStack, g_LastUndoSnapshot
+    if !g_UndoBufferEnabled
+        return
+
+    ; Any new typing invalidates redo snapshot.
+    g_LastUndoSnapshot := []
+
+    g_UndoStack.Push(paired ? 2 : 1)
+}
+
+; Keep boundary hook as a no-op tracker (boundaries are still keystrokes)
+TrackUndoBoundary() {
+    TrackUndoKey(false)
+}
+
+
+ShowSettingsGui() {
+    global g_AutoEnable, g_AutoEnableAllApps, g_Whitelist, g_ToggleHotkey, g_CheckUpdatesOnStartup
+
+    settingsGui := Gui("+MinSize420x360", "HebrewFixer Settings")
+    settingsGui.SetFont("s9")
+
+    settingsGui.AddText("xm ym", "Toggle hotkey:")
+    ; Accept either AHK syntax (^!h) or human format (Ctrl+Alt+H)
+    hotkeyEdit := settingsGui.AddEdit("x+10 yp-2 w200", HotkeyHumanReadable(g_ToggleHotkey))
+    btnRecord := settingsGui.AddButton("x+6 yp-1 w90", "Record…")
+    settingsGui.AddText("xm y+6 c606060", "Tip: click Record…, then press your shortcut (Esc cancels).")
+
+    cbAuto := settingsGui.AddCheckbox("xm y+14", "Auto-enable on Hebrew keyboard")
+    cbAuto.Value := g_AutoEnable
+
+    cbAll := settingsGui.AddCheckbox("xm y+6", "All apps (ignore whitelist)")
+    cbAll.Value := g_AutoEnableAllApps
+
+    cbUpd := settingsGui.AddCheckbox("xm y+10", "Check for updates on startup")
+    cbUpd.Value := g_CheckUpdatesOnStartup
+
+    settingsGui.AddText("xm y+16", "Whitelist (process names like AffinityDesigner.exe):")
+    lv := settingsGui.AddListView("xm y+6 w400 r8", ["Process"])
+    for proc, _ in g_Whitelist
+        lv.Add(, proc)
+    lv.ModifyCol(1, 380)
+
+    btnAdd := settingsGui.AddButton("xm y+10 w90", "Add")
+    btnRemove := settingsGui.AddButton("x+6 yp w90", "Remove")
+    btnSave := settingsGui.AddButton("xm y+14 w90 Default", "Save")
+    btnCancel := settingsGui.AddButton("x+6 yp w90", "Cancel")
+
+    btnAdd.OnEvent("Click", (*) => (
+        ib := InputBox("Enter process name (e.g. AffinityDesigner.exe):", "Add whitelist entry"),
+        (ib.Result = "OK" && Trim(ib.Value) != "") ? lv.Add(, Trim(ib.Value)) : 0
+    ))
+
+    btnRemove.OnEvent("Click", (*) => (
+        row := lv.GetNext(0),
+        row ? lv.Delete(row) : 0
+    ))
+
+    btnRecord.OnEvent("Click", (*) => (
+        hk := CaptureHotkeyHuman(),
+        (hk != "") ? (hotkeyEdit.Value := hk) : 0
+    ))
+
+    btnSave.OnEvent("Click", (*) => (
+        SettingsGuiSave(settingsGui, hotkeyEdit, cbAuto, cbAll, cbUpd, lv)
+    ))
+    btnCancel.OnEvent("Click", (*) => settingsGui.Destroy())
+
+    settingsGui.Show()
+}
+
+SettingsGuiSave(settingsGui, hotkeyEdit, cbAuto, cbAll, cbUpd, lv) {
+    global g_AutoEnable, g_AutoEnableAllApps, g_CheckUpdatesOnStartup
+    global g_Whitelist
+
+    newHotkeyHuman := Trim(hotkeyEdit.Value)
+    if (newHotkeyHuman = "")
+        newHotkeyHuman := HF_DEFAULT_TOGGLE_HOTKEY_HUMAN
+
+    ; Convert human-friendly (Ctrl+Alt+H) to AHK syntax (^!h).
+    newHotkey := HumanHotkeyToAhk(newHotkeyHuman)
+
+    g_AutoEnable := cbAuto.Value = 1
+    g_AutoEnableAllApps := cbAll.Value = 1
+    g_CheckUpdatesOnStartup := cbUpd.Value = 1
+
+    newWL := Map()
+    Loop lv.GetCount() {
+        p := Trim(lv.GetText(A_Index, 1))
+        if (p != "")
+            newWL[p] := true
+    }
+    if (newWL.Count = 0) {
+        newWL["AffinityDesigner.exe"] := true
+        newWL["AffinityPhoto.exe"] := true
+        newWL["AffinityPublisher.exe"] := true
+        newWL["Designer.exe"] := true
+    }
+    g_Whitelist := newWL
+
     try {
-        if g_Enabled
-            TraySetIcon(iconPath . "hebrew_fixer_on.ico")
-        else
-            TraySetIcon(iconPath . "hebrew_fixer_off.ico")
-    } catch {
-        ; Fallback to shell32 icons if custom icons not found
-        try {
-            if g_Enabled
-                TraySetIcon("shell32.dll", 44)
-            else
-                TraySetIcon("shell32.dll", 1)
-        }
+        RegisterToggleHotkey(newHotkey)
+    } catch as e {
+        MsgBox("Invalid hotkey: " . newHotkeyHuman . "`n`n" . e.Message, "HebrewFixer", "Iconx")
+        return
     }
-}
 
-ShowDebug() {
-    global g_Buffer, g_Enabled
-    MsgBox(
-        "Mode: " . (g_Enabled ? "ON" : "OFF") . "`n"
-        "Buffer: [" . g_Buffer . "]`n"
-        "Length: " . StrLen(g_Buffer),
-        "HebrewFixer Debug"
-    )
+    SaveSettings()
+    SetupTray()  ; rebuild tray menu so the hotkey label updates immediately
+    settingsGui.Destroy()
 }
 
 ; =============================================================================
-; UTILITIES
+; HOTKEY REGISTRATION
+; =============================================================================
+
+RegisterToggleHotkey(newHotkey) {
+    global g_ToggleHotkey
+
+    if (g_ToggleHotkey != "") {
+        try Hotkey(g_ToggleHotkey, "Off")
+    }
+
+    g_ToggleHotkey := newHotkey
+    Hotkey(g_ToggleHotkey, (*) => ToggleMode(), "On")
+}
+
+; =============================================================================
+; WINDOW / IME
 ; =============================================================================
 
 IsAffinityActive() {
-    try {
-        title := WinGetTitle("A")
-        return InStr(title, "Affinity Designer")
-            || InStr(title, "Affinity Photo")
-            || InStr(title, "Affinity Publisher")
-    }
-    return false
+    ; Whitelist-driven gating.
+    ; Note: Sara's Affinity Designer is installed at:
+    ;   C:\Program Files\Affinity\Designer\Designer.exe
+    ; which appears as the process name "Designer.exe".
+    global g_Whitelist
+
+    proc := GetActiveProcessName()
+    return (proc != "" && g_Whitelist.Has(proc))
 }
 
-; -----------------------------------------------------------------------------
-; IME DETECTION - Check if Windows keyboard is set to Hebrew
-; Returns true if current keyboard layout is Hebrew (0x040D)
-; -----------------------------------------------------------------------------
+GetActiveProcessName() {
+    try {
+        hwnd := WinExist("A")
+        if !hwnd
+            return ""
+        return WinGetProcessName("ahk_id " . hwnd)
+    } catch {
+        return ""
+    }
+}
+
+GetActiveWindowTitle() {
+    try {
+        hwnd := WinExist("A")
+        if !hwnd
+            return ""
+        return WinGetTitle("ahk_id " . hwnd)
+    } catch {
+        return ""
+    }
+}
+
+IsAutoEnableAllowedForActiveApp() {
+    global g_AutoEnableAllApps, g_Whitelist
+
+    if g_AutoEnableAllApps
+        return true
+
+    proc := GetActiveProcessName()
+    if (proc = "")
+        return false
+
+    return g_Whitelist.Has(proc)
+}
+
 IsHebrewKeyboard() {
+    ; Use active window thread's keyboard layout
     try {
-        ; Get the active window's thread ID
-        threadId := DllCall("GetWindowThreadProcessId", "Ptr", WinExist("A"), "Ptr", 0, "UInt")
-        ; Get the keyboard layout for that thread
-        hkl := DllCall("GetKeyboardLayout", "UInt", threadId, "Ptr")
-        ; Extract language ID (low word)
+        hwnd := WinExist("A")
+        if !hwnd
+            return false
+        threadId := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
+        hkl := DllCall("GetKeyboardLayout", "UInt", threadId, "UPtr")
         langId := hkl & 0xFFFF
-        ; Hebrew language ID is 0x040D (1037 decimal)
         return (langId = 0x040D)
+    } catch {
+        return false
     }
-    return false
+}
+
+WM_INPUTLANGCHANGE(wParam, lParam, msg, hwnd) {
+    ; Fires when keyboard layout changes.
+    ; Desired behavior:
+    ; - If NOT manually overridden: Enabled follows keyboard globally.
+    ; - If manually overridden: Enabled follows keyboard ONLY while focused on a whitelisted app;
+    ;   otherwise remains at the manual override state.
+
+    global g_AutoEnable, g_Enabled, g_ManualOverride, g_ManualOverrideEnabled, g_LastIMEState
+
+    if !g_AutoEnable
+        return
+
+    isHebrew := IsHebrewKeyboard()
+    g_LastIMEState := isHebrew
+
+    ; IME change resets manual override (keyboard is source of truth again)
+    g_ManualOverride := false
+
+    if (g_Enabled != isHebrew) {
+        g_Enabled := isHebrew
+        UpdateTray()
+    }
 }
 
 ; =============================================================================
-; MODE TOGGLE
+; AUTO ENABLE
 ; =============================================================================
+
+RecomputeEnabledState() {
+    global g_AutoEnable, g_Enabled, g_ManualOverride, g_ManualOverrideEnabled
+
+    if !g_AutoEnable
+        return
+
+    base := IsHebrewKeyboard()
+
+    ; While focused on an allowed app, always synchronize to keyboard state.
+    ; Outside allowed apps, respect a manual override if one exists.
+    allowed := IsAutoEnableAllowedForActiveApp()
+
+    desired := base
+    if (!allowed && g_ManualOverride)
+        desired := g_ManualOverrideEnabled
+
+    if (g_Enabled != desired) {
+        g_Enabled := desired
+        UpdateTray()
+    }
+}
+
+CheckAutoEnable() {
+    global g_AutoEnable, g_LastIMEState, g_LastActiveHwnd, g_ManualOverride
+
+    if !g_AutoEnable
+        return
+
+    hwnd := 0
+    try hwnd := WinExist("A")
+
+    ; Focus changes act as a resync point: when entering/leaving an allowed app,
+    ; recompute the effective enabled state.
+    if (hwnd && hwnd != g_LastActiveHwnd) {
+        g_LastActiveHwnd := hwnd
+        RecomputeEnabledState()
+    }
+
+    ; If keyboard layout changed, clear manual override (keyboard becomes source of truth again).
+    isHebrew := IsHebrewKeyboard()
+    if (isHebrew != g_LastIMEState) {
+        g_LastIMEState := isHebrew
+        g_ManualOverride := false
+        RecomputeEnabledState()
+        return
+    }
+
+    ; Otherwise, keep state stable (avoid thrashing) unless focus changes.
+}
 
 ToggleMode() {
-    global g_Enabled, g_Buffer, g_ManualOverride, g_AutoEnable
+    global g_Enabled, g_ManualOverride, g_ManualOverrideEnabled, g_AutoEnable
+
     g_Enabled := !g_Enabled
-    g_Buffer := ""
-    
-    ; If auto-enable is on, set manual override so auto doesn't fight the user
-    if g_AutoEnable
+
+    if g_AutoEnable {
         g_ManualOverride := true
-    
+        g_ManualOverrideEnabled := g_Enabled
+    }
+
     UpdateTray()
-    msg := "Hebrew RTL: " . (g_Enabled ? "ON" : "OFF")
-    if (g_AutoEnable && g_ManualOverride)
-        msg .= " (override)"
-    ShowTip(msg, A_ScreenWidth // 2 - 60, 50, 1500)
+    ShowTip("Hebrew RTL: " . (g_Enabled ? "ON" : "OFF"), A_ScreenWidth // 2 - 80, 50, 1200)
 }
 
-^!h::ToggleMode()
-
 ; =============================================================================
-; CORE: CURSOR-RELATIVE RTL INSERTION
-; =============================================================================
-; Insert character at CURRENT cursor position, then move cursor LEFT.
-; This allows mid-text editing while maintaining RTL flow:
-; - New chars appear to the LEFT of the previous one
-; - Cursor stays at the "typing edge" (left side of newest char)
+; PER-KEY RTL TYPING (Affinity only)
 ; =============================================================================
 
 HandleHebrewKey(physicalKey) {
-    global g_Buffer, HebrewMap
-    
+    global HebrewMap
+    global g_UndoBufferEnabled
+
     if !HebrewMap.Has(physicalKey)
         return
-    
-    ; IME CHECK: Only produce Hebrew if Windows keyboard is set to Hebrew
-    ; If user has English IME active, pass through the original key
-    if !IsHebrewKeyboard() {
-        Send(physicalKey)
+
+    ; Never interfere with application shortcuts.
+    ; If Ctrl or Alt is physically down, pass through the keystroke unchanged.
+    if GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}" . physicalKey)
         return
     }
-    
+
+    ; If not Hebrew keyboard, pass through as a normal keystroke.
+    if !IsHebrewKeyboard() {
+        Send("{Blind}" . physicalKey)
+        TrackUndoKey(false)
+        return
+    }
+
+    ; Respect Shift+Letter to allow typing Latin uppercase while Hebrew keyboard is active.
+    ; This is important for mixed RTL/LTR strings.
+    if GetKeyState("Shift", "P") && RegExMatch(physicalKey, "^[a-z]$") {
+        Send("{Blind}" . physicalKey)   ; Shift will produce uppercase
+        SendInput("{Left}")
+        TrackUndoKey(true)
+        return
+    }
+
     hebrewChar := HebrewMap[physicalKey]
-    
-    ; Track in buffer (for potential future use)
-    g_Buffer .= hebrewChar
-    
-    ; CURSOR-RELATIVE RTL insertion:
-    ; Type character, then immediately move cursor left
-    ; SetKeyDelay(-1, -1) at script start ensures minimal delay
-    ; Two SendInput calls but they get buffered together by Windows
     SendInput("{Raw}" . hebrewChar)
     SendInput("{Left}")
+
+    TrackUndoKey(true)
 }
 
-; =============================================================================
-; SPECIAL KEY HANDLERS
-; =============================================================================
-
 HandleBackspace() {
-    global g_Buffer
-    
-    ; Only swap if Hebrew IME is active
     if !IsHebrewKeyboard() {
         Send("{BS}")
         return
-    }
-    
-    ; RTL: Simply swap Backspace → Delete
-    if g_Buffer != "" {
-        g_Buffer := SubStr(g_Buffer, 1, -1)
     }
     Send("{Delete}")
 }
 
 HandleDelete() {
-    global g_Buffer
-    
-    ; Only swap if Hebrew IME is active
     if !IsHebrewKeyboard() {
         Send("{Delete}")
         return
     }
-    
-    ; RTL: Simply swap Delete → Backspace
-    if g_Buffer != "" {
-        g_Buffer := SubStr(g_Buffer, 2)
-    }
     Send("{BS}")
 }
 
-HandleCtrlBackspace() {
-    global g_Buffer
-    
-    ; Only swap if Hebrew IME is active
-    if !IsHebrewKeyboard() {
-        Send("^{BS}")
-        return
-    }
-    
-    ; RTL: Ctrl+Backspace → Ctrl+Delete
-    g_Buffer := ""
-    Send("^{Delete}")
+; =============================================================================
+; DEBUG LOG (silent)
+; =============================================================================
+
+ShouldBypassShortcuts() {
+    return GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P")
 }
 
-HandleCtrlDelete() {
-    global g_Buffer
-    
-    ; Only swap if Hebrew IME is active
-    if !IsHebrewKeyboard() {
-        Send("^{Delete}")
-        return
+DebugLog(msg) {
+    global g_ConfigDir
+    try {
+        line := "[" . FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss") . "] " . msg . "`n"
+        FileAppend(line, g_ConfigDir . "\\hf_debug.log", "UTF-8")
+    } catch {
+        ; ignore
     }
-    
-    ; RTL: Ctrl+Delete → Ctrl+Backspace
-    g_Buffer := ""
-    Send("^{BS}")
-}
-
-HandleBufferReset() {
-    global g_Buffer
-    g_Buffer := ""
 }
 
 ; =============================================================================
-; CONTEXT: Only when enabled AND in Affinity
+; CLIPBOARD TRANSFORM (multi-line)
+; =============================================================================
+
+ClipboardContainsHebrew(text) {
+    global HF_HEBREW_RE
+    return RegExMatch(text, HF_HEBREW_RE)
+}
+
+FixBidiPastePerLine(text) {
+    ; For each line:
+    ; 1) reverse token order (word-level)
+    ; 2) reverse Hebrew character order within tokens (run-level) so Affinity displays letters correctly
+    ; This combination is involutive (applying it again returns original).
+
+    text := StrReplace(text, "`r`n", "`n")
+    text := StrReplace(text, "`r", "`n")
+
+    lines := StrSplit(text, "`n", false)
+    out := ""
+
+    for idx, line in lines {
+        out .= FixBidiPasteLine(line)
+        if (idx < lines.Length)
+            out .= "`n"
+    }
+
+    return out
+}
+
+FixBidiPasteLine(line) {
+    ; Reverse token order per line while preserving whitespace, and also fix letter order
+    ; inside Hebrew runs within each token.
+
+    wsClass := "[ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]"  ; common Unicode spaces
+
+    if RegExMatch(line, "^(" . wsClass . "*)(.*?)((?:" . wsClass . ")*)$", &m) {
+        lead := m[1], core := m[2], trail := m[3]
+    } else {
+        lead := "", core := line, trail := ""
+    }
+
+    ; If core has no non-whitespace characters, return original.
+    if !RegExMatch(core, "[^ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]")
+        return line
+
+    tokens := []
+    seps := []  ; whitespace following each token
+
+    pos := 1
+    pat := "([^ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]+)(" . wsClass . "*)"
+    while RegExMatch(core, pat, &mm, pos) {
+        tokens.Push(mm[1])
+        seps.Push(mm[2])
+        pos := mm.Pos + mm.Len
+    }
+
+    if (tokens.Length <= 1) {
+        ; Still fix letter-order inside the single token, but keep whitespace untouched.
+        fixed := ReverseHebrewRuns(tokens.Length = 1 ? tokens[1] : core)
+        return lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail
+    }
+
+    trailingSep := seps[seps.Length]
+    seps.Pop()
+
+    out := ""
+    Loop tokens.Length {
+        tok := tokens[tokens.Length - A_Index + 1]
+        tok := ReverseHebrewRuns(tok)
+        out .= tok
+        if (A_Index < tokens.Length) {
+            sepIdx := seps.Length - A_Index + 1
+            out .= seps[sepIdx]
+        }
+    }
+    out .= trailingSep
+
+    return lead . out . trail
+}
+
+ReverseHebrewRuns(s) {
+    ; Reverse character order inside Hebrew runs only.
+    ; This helps BiDi-unsupported targets display Hebrew tokens correctly.
+
+    out := ""
+    run := ""
+    runIsHeb := false
+
+    chars := StrSplit(s)
+    for i, ch in chars {
+        isHeb := IsHebrewChar(ch)
+        if (i = 1) {
+            run := ch
+            runIsHeb := isHeb
+            continue
+        }
+        if (isHeb = runIsHeb) {
+            run .= ch
+        } else {
+            out .= runIsHeb ? ReverseString(run) : run
+            run := ch
+            runIsHeb := isHeb
+        }
+    }
+
+    if (run != "")
+        out .= runIsHeb ? ReverseString(run) : run
+
+    return out
+}
+
+IsHebrewChar(ch) {
+    code := Ord(ch)
+    return (code >= 0x0590 && code <= 0x05FF)
+}
+
+ReverseString(s) {
+    chars := StrSplit(s)
+    out := ""
+    Loop chars.Length {
+        out .= chars[chars.Length - A_Index + 1]
+    }
+    return out
+}
+
+; =============================================================================
+; HOTKEYS (Affinity only, enabled)
 ; =============================================================================
 
 #HotIf g_Enabled && IsAffinityActive()
 
-; -----------------------------------------------------------------------------
-; PHYSICAL KEY MAPPINGS (US QWERTY → Hebrew)
-; $ prefix = intercept and block the original key
-; -----------------------------------------------------------------------------
+; Mouse click likely changes selection/caret; clear undo buffer.
+~LButton::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+}
 
-$a::HandleHebrewKey("a")
-$b::HandleHebrewKey("b")
-$c::HandleHebrewKey("c")
-$d::HandleHebrewKey("d")
-$e::HandleHebrewKey("e")
-$f::HandleHebrewKey("f")
-$g::HandleHebrewKey("g")
-$h::HandleHebrewKey("h")
-$i::HandleHebrewKey("i")
-$j::HandleHebrewKey("j")
-$k::HandleHebrewKey("k")
-$l::HandleHebrewKey("l")
-$m::HandleHebrewKey("m")
-$n::HandleHebrewKey("n")
-$o::HandleHebrewKey("o")
-$p::HandleHebrewKey("p")
-$r::HandleHebrewKey("r")
-$s::HandleHebrewKey("s")
-$t::HandleHebrewKey("t")
-$u::HandleHebrewKey("u")
-$v::HandleHebrewKey("v")
-$x::HandleHebrewKey("x")
-$y::HandleHebrewKey("y")
-$z::HandleHebrewKey("z")
+; Home/End/PageUp/PageDown and other navigation keys can be idempotent; clear buffer.
+; We override Home/End below to swap for RTL; keep PgUp/PgDn as passthrough invalidators.
+~PgUp::(g_UndoBufferEnabled ? ClearUndoBuffer() : 0)
+~PgDn::(g_UndoBufferEnabled ? ClearUndoBuffer() : 0)
+
+; Home/End navigation should respect RTL direction.
+; Note: some keyboards send NumpadHome/NumpadEnd when NumLock is off.
+HandleHomeEndCombo(navKey, ctrl := false, shift := false) {
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    heb := IsHebrewKeyboard()
+    DebugLog("HomeEnd combo: key=" . navKey . " ctrl=" . (ctrl?"1":"0") . " shift=" . (shift?"1":"0") . " heb=" . (heb?"1":"0"))
+
+    target := navKey
+    if heb {
+        if (navKey = "Home")
+            target := "End"
+        else if (navKey = "End")
+            target := "Home"
+    }
+
+    prefix := "{Blind}"
+    if ctrl
+        prefix .= "^"
+    if shift
+        prefix .= "+"
+
+    Send(prefix . "{" . target . "}")
+}
+
+$Home::HandleHomeEndCombo("Home")
+$End::HandleHomeEndCombo("End")
+$NumpadHome::HandleHomeEndCombo("Home")
+$NumpadEnd::HandleHomeEndCombo("End")
+
+$^Home::HandleHomeEndCombo("Home", true, false)
+$^End::HandleHomeEndCombo("End", true, false)
+$^NumpadHome::HandleHomeEndCombo("Home", true, false)
+$^NumpadEnd::HandleHomeEndCombo("End", true, false)
+
+$+Home::HandleHomeEndCombo("Home", false, true)
+$+End::HandleHomeEndCombo("End", false, true)
+$+NumpadHome::HandleHomeEndCombo("Home", false, true)
+$+NumpadEnd::HandleHomeEndCombo("End", false, true)
+
+$^+Home::HandleHomeEndCombo("Home", true, true)
+$^+End::HandleHomeEndCombo("End", true, true)
+$^+NumpadHome::HandleHomeEndCombo("Home", true, true)
+$^+NumpadEnd::HandleHomeEndCombo("End", true, true)
+
+; Function keys: untracked, but F1 and F10 invalidate because they change UI interaction mode.
+~F1::(g_UndoBufferEnabled ? ClearUndoBuffer() : 0)
+~F10::(g_UndoBufferEnabled ? ClearUndoBuffer() : 0)
+
+; Modifiers alone do NOT invalidate. We only invalidate on specific risky actions (mouse/nav/edit)
+; and on function keys that alter UI state (F1/F10), including modifier+F1/F10 combos.
+
+; per-key mappings
+$*a::HandleHebrewKey("a")
+$*b::HandleHebrewKey("b")
+$*c::HandleHebrewKey("c")
+$*d::HandleHebrewKey("d")
+$*e::HandleHebrewKey("e")
+$*f::HandleHebrewKey("f")
+$*g::HandleHebrewKey("g")
+$*h::HandleHebrewKey("h")
+$*i::HandleHebrewKey("i")
+$*j::HandleHebrewKey("j")
+$*k::HandleHebrewKey("k")
+$*l::HandleHebrewKey("l")
+$*m::HandleHebrewKey("m")
+$*n::HandleHebrewKey("n")
+$*o::HandleHebrewKey("o")
+$*p::HandleHebrewKey("p")
+$*r::HandleHebrewKey("r")
+$*s::HandleHebrewKey("s")
+$*t::HandleHebrewKey("t")
+$*u::HandleHebrewKey("u")
+$*v::HandleHebrewKey("v")
+$*x::HandleHebrewKey("x")
+$*y::HandleHebrewKey("y")
+$*z::HandleHebrewKey("z")
 $,::HandleHebrewKey(",")
 $.::HandleHebrewKey(".")
 $;::HandleHebrewKey(";")
 
-; Keys not mapped to Hebrew pass through normally
-$q::Send("q")
-$w::Send("w")
-
-; -----------------------------------------------------------------------------
-; SPECIAL KEYS
-; -----------------------------------------------------------------------------
-
-$BS::HandleBackspace()
-$Delete::HandleDelete()
-^BS::HandleCtrlBackspace()
-^Delete::HandleCtrlDelete()
-
-$Enter::{ 
-    HandleBufferReset()
-    Send("{Enter}")
+$*q::{
+    global g_UndoBufferEnabled
+    Send("{Blind}q")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
 }
-$Tab::{
-    HandleBufferReset()
-    Send("{Tab}")
-}
-$Esc::{
-    HandleBufferReset()
-    Send("{Esc}")
+$*w::{
+    global g_UndoBufferEnabled
+    Send("{Blind}w")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
 }
 
-; -----------------------------------------------------------------------------
-; SPACEBAR - Treat like a character in RTL mode (insert + move left)
-; -----------------------------------------------------------------------------
+; Digits & common punctuation: track as non-paired.
+$*1:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}1")
+        return
+    }
+
+    Send("{Blind}1")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*2:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}2")
+        return
+    }
+
+    Send("{Blind}2")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*3:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}3")
+        return
+    }
+
+    Send("{Blind}3")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*4:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}4")
+        return
+    }
+
+    Send("{Blind}4")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*5:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}5")
+        return
+    }
+
+    Send("{Blind}5")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*6:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}6")
+        return
+    }
+
+    Send("{Blind}6")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*7:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}7")
+        return
+    }
+
+    Send("{Blind}7")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*8:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}8")
+        return
+    }
+
+    Send("{Blind}8")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*9:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}9")
+        return
+    }
+
+    Send("{Blind}9")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*0:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}0")
+        return
+    }
+
+    Send("{Blind}0")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+
+$*-:: {
+    global g_UndoBufferEnabled
+    Send("{Blind}-")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*=:: {
+    global g_UndoBufferEnabled
+    Send("{Blind}=")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*[:: {
+    global g_UndoBufferEnabled
+    Send("{Blind}[")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*]:: {
+    global g_UndoBufferEnabled
+    Send("{Blind}]")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*\:: {
+    global g_UndoBufferEnabled
+    Send("{Blind}\\")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*':: {
+    global g_UndoBufferEnabled
+    Send("{Blind}'")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+$*/:: {
+    global g_UndoBufferEnabled
+    Send("{Blind}/")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+; Backtick/tilde key tracking: use scancode to avoid escaping issues.
+$*SC029:: {
+    global g_UndoBufferEnabled
+    ; Send a literal backtick. Shift+SC029 will produce ~ naturally due to {Blind}.
+    Send("{Blind}{Text}``")
+    if g_UndoBufferEnabled
+        TrackUndoKey()
+}
+
+; Comma/period/semicolon are already handled via HebrewMap physical keys (, . ;) above.
+
+; Enter and Tab: track as non-paired (do NOT invalidate buffer).
+$Enter:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}{Enter}")
+        return
+    }
+    Send("{Blind}{Enter}")
+    if g_UndoBufferEnabled {
+        TrackUndoKey()
+        TrackUndoBoundary()
+    }
+}
+$Tab:: {
+    global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}{Tab}")
+        return
+    }
+    Send("{Blind}{Tab}")
+    if g_UndoBufferEnabled {
+        TrackUndoKey()
+        TrackUndoBoundary()
+    }
+}
+
+$BS::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+    HandleBackspace()
+}
+$Delete::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+    HandleDelete()
+}
+
+; Ctrl+Backspace / Ctrl+Delete should respect RTL direction too.
+$^BS::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}^{Delete}")  ; delete word to the RIGHT
+    else
+        Send("{Blind}^{BS}")
+}
+$^Delete::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}^{BS}")      ; delete word to the LEFT
+    else
+        Send("{Blind}^{Delete}")
+}
+
+; Space needs RTL treatment too (insert + move left) when Hebrew keyboard is active.
 $Space::{
-    global g_Buffer
-    
-    ; If not Hebrew IME, just send space normally
+    global g_UndoBufferEnabled
+
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}{Space}")
+        return
+    }
+
     if !IsHebrewKeyboard() {
         Send("{Space}")
+        if g_UndoBufferEnabled {
+            TrackUndoKey()
+            TrackUndoBoundary()
+        }
         return
     }
-    
-    ; In RTL mode, space needs same treatment as Hebrew chars:
-    ; Insert space, then move cursor left to maintain RTL flow
-    g_Buffer .= " "
     SendInput("{Space}")
     SendInput("{Left}")
+    if g_UndoBufferEnabled {
+        TrackUndoKey()
+        TrackUndoBoundary()
+    }
 }
 
+; Arrow keys feel reversed in Affinity when doing RTL work.
+; BUT: they can be idempotent / desync undo; clear paired-undo buffer on any arrow use.
 $Left::{
-    HandleBufferReset()
-    if IsHebrewKeyboard() {
-        Send("{Right}")  ; RTL: reversed
-    } else {
-        Send("{Left}")   ; Normal
-    }
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Right}")
+    else
+        Send("{Left}")
 }
 $Right::{
-    HandleBufferReset()
-    if IsHebrewKeyboard() {
-        Send("{Left}")   ; RTL: reversed
-    } else {
-        Send("{Right}")  ; Normal
-    }
-}
-+Left::{
-    if IsHebrewKeyboard() {
-        Send("+{Right}")  ; RTL: reversed
-    } else {
-        Send("+{Left}")   ; Normal
-    }
-}
-+Right::{
-    if IsHebrewKeyboard() {
-        Send("+{Left}")   ; RTL: reversed
-    } else {
-        Send("+{Right}")  ; Normal
-    }
-}
-^Left::{
-    HandleBufferReset()
-    if IsHebrewKeyboard() {
-        Send("^{Right}")  ; RTL: reversed
-    } else {
-        Send("^{Left}")   ; Normal
-    }
-}
-^Right::{
-    HandleBufferReset()
-    if IsHebrewKeyboard() {
-        Send("^{Left}")   ; RTL: reversed
-    } else {
-        Send("^{Right}")  ; Normal
-    }
-}
-^+Left::{
-    if IsHebrewKeyboard() {
-        Send("^+{Right}")  ; RTL: reversed
-    } else {
-        Send("^+{Left}")   ; Normal
-    }
-}
-^+Right::{
-    if IsHebrewKeyboard() {
-        Send("^+{Left}")   ; RTL: reversed
-    } else {
-        Send("^+{Right}")  ; Normal
-    }
-}
-$Up::{
-    HandleBufferReset()
-    Send("{Up}")
-}
-$Down::{
-    HandleBufferReset()
-    Send("{Down}")
-}
-$Home::{
-    HandleBufferReset()
-    Send("{Home}")
-}
-$End::{
-    HandleBufferReset()
-    Send("{End}")
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Left}")
+    else
+        Send("{Right}")
 }
 
-^a::{
-    HandleBufferReset()
-    Send("^a")
+; Shift+Arrow character selection should also respect RTL direction.
+$+Left::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}+{Right}")
+    else
+        Send("{Blind}+{Left}")
 }
-^z::{
-    HandleBufferReset()
-    Send("^z")
-}
-^y::{
-    HandleBufferReset()
-    Send("^y")
+$+Right::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}+{Left}")
+    else
+        Send("{Blind}+{Right}")
 }
 
-; -----------------------------------------------------------------------------
-; PASTE - BiDi-aware paste for mixed Hebrew/English text
-; -----------------------------------------------------------------------------
-; Implements a simplified BiDi algorithm:
-; 1. Split text into directional runs (Hebrew RTL vs non-Hebrew LTR)
-; 2. Reverse the order of runs
-; 3. Reverse characters within Hebrew runs only
-; 4. Preserve character order within non-Hebrew runs
-; -----------------------------------------------------------------------------
-^v::{
-    global g_Buffer
-    
-    clipText := A_Clipboard
-    
-    ; Check if clipboard contains Hebrew characters
-    if !RegExMatch(clipText, "[\x{0590}-\x{05FF}]") {
-        ; No Hebrew - just paste normally
-        Send("^v")
-        g_Buffer := ""
+; Ctrl+Arrow word navigation should also respect RTL direction.
+$^Left::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}^{Right}")
+    else
+        Send("{Blind}^{Left}")
+}
+$^Right::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}^{Left}")
+    else
+        Send("{Blind}^{Right}")
+}
+
+; Ctrl+Shift+Arrow word selection should also respect RTL direction.
+$^+Left::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}^+{Right}")
+    else
+        Send("{Blind}^+{Left}")
+}
+$^+Right::{
+    global g_UndoBufferEnabled
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
+
+    if IsHebrewKeyboard()
+        Send("{Blind}^+{Left}")
+    else
+        Send("{Blind}^+{Right}")
+}
+
+; Ctrl+Z / Ctrl+Y fix (debug feature):
+; One Ctrl+Z consumes the WHOLE current buffer and sends Ctrl+Z the total required times.
+; One Ctrl+Y restores the WHOLE last undone buffer and sends Ctrl+Y the same total times.
+$^z::{
+    global g_UndoBufferEnabled, g_UndoStack, g_LastUndoSnapshot
+
+    if !g_UndoBufferEnabled {
+        Send("{Blind}^z")
         return
     }
-    
-    ; Process with BiDi algorithm
-    processed := BiDiProcess(clipText)
-    
-    ; Paste the processed text
+
+    if (g_UndoStack.Length = 0) {
+        Send("{Blind}^z")
+        return
+    }
+
+    ; Save snapshot for redo, then clear live stack.
+    g_LastUndoSnapshot := g_UndoStack.Clone()
+    g_UndoStack := []
+
+    total := 0
+    for _, c in g_LastUndoSnapshot
+        total += c
+
+    Loop total {
+        Send("{Blind}^z")
+        Sleep(10)
+    }
+}
+
+$^y::{
+    global g_UndoBufferEnabled, g_UndoStack, g_LastUndoSnapshot
+
+    if !g_UndoBufferEnabled {
+        Send("{Blind}^y")
+        return
+    }
+
+    if (g_LastUndoSnapshot.Length = 0) {
+        Send("{Blind}^y")
+        return
+    }
+
+    total := 0
+    for _, c in g_LastUndoSnapshot
+        total += c
+
+    Loop total {
+        Send("{Blind}^y")
+        Sleep(10)
+    }
+
+    ; Restore buffer tracking state so a subsequent Ctrl+Z can undo it again.
+    g_UndoStack := g_LastUndoSnapshot.Clone()
+    g_LastUndoSnapshot := []
+}
+
+; Paste
+$^v::{
+    clipText := A_Clipboard
+    DebugLog("Paste hotkey fired. proc=" . GetActiveProcessName() . " | title=" . GetActiveWindowTitle())
+    DebugLog("Paste clipLen=" . StrLen(clipText) . " sample=" . SubStr(clipText, 1, 60))
+    if !ClipboardContainsHebrew(clipText) {
+        DebugLog("Paste: no Hebrew detected; pass-through")
+        Send("{Blind}^v")
+        return
+    }
+
+    processed := FixBidiPastePerLine(clipText)
+    if (processed = clipText) {
+        DebugLog("Paste: Hebrew detected but transform produced identical output")
+        DebugLog("Paste processed sample=" . SubStr(processed, 1, 60))
+    } else {
+        DebugLog("Paste: Hebrew detected; transform applied")
+        DebugLog("Paste processed sample=" . SubStr(processed, 1, 60))
+    }
+
     savedClip := ClipboardAll()
     A_Clipboard := processed
     if ClipWait(1) {
-        Send("^v")
+        Send("{Blind}^v")
         Sleep(50)
     }
     A_Clipboard := savedClip
-    g_Buffer := ""
+
+    ; Paste can alter undo history unpredictably; invalidate.
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
 }
 
-; -----------------------------------------------------------------------------
-; BiDi Processing Function
-; -----------------------------------------------------------------------------
-BiDiProcess(text) {
-    ; Split into directional runs
-    runs := []
-    currentRun := ""
-    currentIsHebrew := false
-    
-    chars := StrSplit(text)
-    
-    for i, char in chars {
-        charIsHebrew := IsHebrewChar(char)
-        
-        if (i = 1) {
-            ; First character starts first run
-            currentRun := char
-            currentIsHebrew := charIsHebrew
-        } else if (charIsHebrew = currentIsHebrew) {
-            ; Same direction - extend current run
-            currentRun .= char
-        } else {
-            ; Direction changed - save current run, start new one
-            runs.Push({text: currentRun, isHebrew: currentIsHebrew})
-            currentRun := char
-            currentIsHebrew := charIsHebrew
-        }
-    }
-    
-    ; Don't forget the last run
-    if (currentRun != "") {
-        runs.Push({text: currentRun, isHebrew: currentIsHebrew})
-    }
-    
-    ; Keep run order the same, only reverse chars within Hebrew runs
-    ; (The BiDi algorithm displays runs in logical order for RTL base direction,
-    ; but reverses character order within RTL runs)
-    
-    ; Build result: reverse chars within Hebrew runs, preserve non-Hebrew
-    result := ""
-    for i, run in runs {
-        if run.isHebrew {
-            ; Reverse characters within Hebrew run
-            runChars := StrSplit(run.text)
-            Loop runChars.Length {
-                result .= runChars[runChars.Length - A_Index + 1]
-            }
-        } else {
-            ; Keep non-Hebrew run as-is
-            result .= run.text
-        }
-    }
-    
-    return result
-}
+; Copy
+$^c::{
+    A_Clipboard := ""
+    Send("{Blind}^c")
+    if !ClipWait(0.7)
+        return
 
-; -----------------------------------------------------------------------------
-; Check if character is Hebrew (U+0590 to U+05FF)
-; -----------------------------------------------------------------------------
-IsHebrewChar(char) {
-    code := Ord(char)
-    return (code >= 0x0590 && code <= 0x05FF)
+    if ClipboardContainsHebrew(A_Clipboard) {
+        A_Clipboard := FixBidiPastePerLine(A_Clipboard)
+        ClipWait(0.4)
+    }
+
+    ; Copy shouldn't affect undo, but selection might have; be conservative.
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
 }
 
 #HotIf
 
 ; =============================================================================
-; END
+; DIAGNOSTICS
 ; =============================================================================
+
+CopyDiagnosticInfo() {
+    global HF_VERSION, g_Enabled, g_AutoEnable, g_AutoEnableAllApps, g_ToggleHotkey, g_CheckUpdatesOnStartup
+    global g_ConfigIni
+
+    proc := GetActiveProcessName()
+    title := GetActiveWindowTitle()
+
+    diag := "HebrewFixer Diagnostic Report`n"
+    diag .= "Generated: " . FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss") . "`n`n"
+    diag .= "Version: " . HF_VERSION . "`n"
+    diag .= "Script/Exe: " . A_ScriptFullPath . "`n"
+    diag .= "Config INI: " . g_ConfigIni . "`n`n"
+    diag .= "State:`n"
+    diag .= "- Enabled: " . (g_Enabled ? "Yes" : "No") . "`n"
+    diag .= "- Auto-enable: " . (g_AutoEnable ? "Yes" : "No") . "`n"
+    diag .= "- Auto-enable All apps: " . (g_AutoEnableAllApps ? "Yes" : "No") . "`n"
+    diag .= "- Toggle hotkey (human): " . HotkeyHumanReadable(g_ToggleHotkey) . "`n"
+    diag .= "- Toggle hotkey (ahk): " . g_ToggleHotkey . "`n"
+    diag .= "- Active process: " . proc . "`n"
+    diag .= "- Active window title: " . title . "`n"
+    diag .= "- Check updates on startup: " . (g_CheckUpdatesOnStartup ? "Yes" : "No") . "`n"
+
+    A_Clipboard := diag
+    ClipWait(0.5)
+    ShowTip("Diagnostic info copied", A_ScreenWidth // 2 - 100, 50, 1500)
+}
+
+; =============================================================================
+; UPDATE CHECK + BANNER
+; =============================================================================
+
+CheckForUpdatesOnStartup() {
+    global HF_VERSION, g_ConfigIni
+    static checkedThisRun := false
+
+    bootId := GetBootId()
+
+    ; Harden: only do the network check once per boot.
+    lastCheckedBoot := IniRead(g_ConfigIni, "Updates", "LastCheckedBootId", "")
+    if (bootId != "" && lastCheckedBoot = bootId)
+        return
+    if (bootId = "" && checkedThisRun)
+        return
+
+    checkedThisRun := true
+
+    ; Record that we checked on this boot (even if no update is found).
+    if (bootId != "") {
+        IniWrite(bootId, g_ConfigIni, "Updates", "LastCheckedBootId")
+        NormalizeIniEncoding()
+    }
+
+    url := "https://api.github.com/repos/Cencyte/HebrewFixer/releases/latest"
+
+    try {
+        http := ComObject("WinHttp.WinHttpRequest.5.1")
+        http.Open("GET", url, true)
+        http.SetRequestHeader("User-Agent", "HebrewFixer")
+        http.Send()
+        http.WaitForResponse(2)
+
+        if (http.Status != 200)
+            return
+
+        body := http.ResponseText
+        if !RegExMatch(body, '"tag_name"\\s*:\\s*"([^"]+)"', &m)
+            return
+
+        latest := m[1]
+        if (latest = "" || latest = HF_VERSION)
+            return
+
+        ; Show the banner only once per boot.
+        lastShownBoot := IniRead(g_ConfigIni, "Updates", "LastBannerBootId", "")
+        if (bootId != "" && lastShownBoot = bootId)
+            return
+
+        if (bootId != "") {
+            IniWrite(bootId, g_ConfigIni, "Updates", "LastBannerBootId")
+            NormalizeIniEncoding()
+        }
+
+        ShowUpdateBanner(latest)
+        EnsureUpdateMenuItem(latest)
+    } catch {
+        return
+    }
+}
+
+EnsureUpdateMenuItem(latestTag) {
+    global g_UpdateMenuLabel, g_GithubRepoUrl
+
+    newLabel := "Update available (" . latestTag . ")"
+    if (g_UpdateMenuLabel = newLabel)
+        return
+
+    if (g_UpdateMenuLabel != "") {
+        try A_TrayMenu.Delete(g_UpdateMenuLabel)
+    }
+
+    A_TrayMenu.Add()
+    A_TrayMenu.Add(newLabel, (*) => Run(g_GithubRepoUrl))
+    g_UpdateMenuLabel := newLabel
+}
+
+GetBootId() {
+    ; Stable boot identifier.
+    ; 1) Prefer WMI Win32_OperatingSystem.LastBootUpTime.
+    ; 2) Fallback: compute boot time using system uptime (GetTickCount64).
+
+    try {
+        wmi := ComObjGet("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2")
+        for os in wmi.ExecQuery("SELECT LastBootUpTime FROM Win32_OperatingSystem") {
+            s := os.LastBootUpTime
+            ; WMI format: yyyymmddHHMMSS.mmmmmmsUUU
+            id := SubStr(s, 1, 14)
+            if (id != "")
+                return id
+        }
+    } catch {
+        ; ignore
+    }
+
+    ; Fallback: A_NowUTC - uptimeSeconds
+    try {
+        uptimeMs := DllCall("GetTickCount64", "Int64")
+        uptimeSec := Floor(uptimeMs / 1000)
+        bootUtc := DateAdd(A_NowUTC, -uptimeSec, "Seconds")
+        return SubStr(bootUtc, 1, 14)
+    } catch {
+        return ""
+    }
+}
+
+ShowUpdateBanner(latestTag) {
+    global g_GithubRepoUrl
+
+    ; A small, notification-like banner.
+    w := 340, h := 74
+    x := A_ScreenWidth - w - 18
+    y := 18
+
+    banner := Gui("-Caption +ToolWindow +AlwaysOnTop +Border", "")
+    banner.BackColor := "FFFFFF"
+    banner.MarginX := 12
+    banner.MarginY := 10
+
+    ; close button
+    banner.SetFont("s10", "Segoe UI")
+    btnClose := banner.AddText("x" . (w - 24) . " y8 w16 h16 Center c808080", "×")
+    btnClose.OnEvent("Click", (*) => banner.Destroy())
+
+    ; Info icon from imageres.dll (best-effort; icon index may vary by Windows version)
+    hasIcon := false
+    try {
+        banner.AddPicture("x12 y12 w16 h16 Icon81", "imageres.dll")
+        hasIcon := true
+    } catch {
+        try {
+            banner.AddPicture("x12 y12 w16 h16 Icon2", "imageres.dll")
+            hasIcon := true
+        } catch {
+            hasIcon := false
+        }
+    }
+
+    title := "Update available"
+    if (latestTag != "")
+        title .= " (" . latestTag . ")"
+
+    banner.SetFont("s9 Bold", "Segoe UI")
+    tx := hasIcon ? 36 : 12
+    t := banner.AddText("x" . tx . " y10 w" . (w - tx - 28), title)
+
+    banner.SetFont("s9 Norm", "Segoe UI")
+    t2 := banner.AddText("x" . tx . " y+4 w" . (w - tx - 20) . " c404040", "Click to open GitHub")
+
+    open := (*) => (Run(g_GithubRepoUrl), banner.Destroy())
+    t.OnEvent("Click", open)
+    t2.OnEvent("Click", open)
+    banner.OnEvent("Click", open)
+
+    banner.Show("x" . x . " y" . y . " w" . w . " h" . h . " NoActivate")
+
+    ; Rounded corners (best-effort)
+    try WinSetRegion("0-0 w" . w . " h" . h . " R12-12", banner.Hwnd)
+
+    SetTimer(() => (banner.Destroy()), -10000)
+}
