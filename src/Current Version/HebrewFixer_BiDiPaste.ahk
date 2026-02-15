@@ -9,7 +9,7 @@ SetKeyDelay(-1, -1)
 ; -------------------- constants --------------------
 global HF_VERSION := "0.9.0-dev"
 ; Increment this when debugging build/source mismatches.
-global HF_BUILD_STAMP := "2026-02-15-mixed-latin-wsclassfix"
+global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
 
 ; Unicode whitespace class (explicit list; avoid regex ranges which can fail to compile on some systems)
@@ -1280,13 +1280,12 @@ ReverseHebrewRuns(s) {
 
 FixMixedScriptLine(line) {
     ; Mixed-script token algorithm (for lines containing Latin letters):
-    ; - preserve whitespace
+    ; - preserve whitespace exactly
     ; - narrow boundary repair for <LatinPrefix><HebrewTail> + <HebrewChar><LatinRun>
     ; - reverse Hebrew runs within tokens
-    ; - reverse order of contiguous Hebrew-token runs only
+    ; IMPORTANT: no token reordering for mixed-script lines
 
     global HF_WSCLASS
-
     wsClass := HF_WSCLASS
 
     tokens := []
@@ -1302,7 +1301,8 @@ FixMixedScriptLine(line) {
     if (tokens.Length = 0)
         return line
 
-    ; Boundary repair
+    ; Boundary repair: if token[i] is LatinPrefix+HebTail (all Hebrew) and token[i+1] is HebChar+LatinRun,
+    ; move the HebChar into token[i] after the LatinPrefix, and leave token[i+1] as LatinRun.
     Loop tokens.Length - 1 {
         iTok := A_Index
         t1 := tokens[iTok]
@@ -1335,49 +1335,9 @@ FixMixedScriptLine(line) {
         }
     }
 
+    ; Reverse Hebrew runs within tokens
     for i, t in tokens
         tokens[i] := ReverseHebrewRuns(t)
-
-    IsHebTok(tok) {
-        k := 1
-        while (k <= StrLen(tok)) {
-            if IsHebrewChar(SubStr(tok, k, 1))
-                return true
-            k += 1
-        }
-        return false
-    }
-
-    i := 1
-    while (i <= tokens.Length) {
-        if !IsHebTok(tokens[i]) {
-            i += 1
-            continue
-        }
-        runStart := i
-        while (i <= tokens.Length && IsHebTok(tokens[i]))
-            i += 1
-        runEnd := i - 1
-
-        a := runStart
-        b := runEnd
-        while (a < b) {
-            tmp := tokens[a]
-            tokens[a] := tokens[b]
-            tokens[b] := tmp
-
-            sepIdxA := a
-            sepIdxB := b - 1
-            if (sepIdxA <= seps.Length && sepIdxB >= 1 && sepIdxA < sepIdxB) {
-                tmpS := seps[sepIdxA]
-                seps[sepIdxA] := seps[sepIdxB]
-                seps[sepIdxB] := tmpS
-            }
-
-            a += 1
-            b -= 1
-        }
-    }
 
     out := ""
     Loop tokens.Length {
@@ -1388,6 +1348,7 @@ FixMixedScriptLine(line) {
 
     return out
 }
+
 
 
 IsHebrewChar(ch) {
@@ -2029,7 +1990,8 @@ $^v::{
 
     try {
         processed := FixBidiPastePerLine(clipText)
-        DebugLog("Paste processedLen=" . StrLen(processed) . " sample=" . SubStr(processed, 1, 60))
+        DebugLog("Paste stage=" . g_LastTransformStage)
+    DebugLog("Paste processedLen=" . StrLen(processed) . " sample=" . SubStr(processed, 1, 60))
 
         if (processed = "") {
             throw Error("Transform returned empty string")
