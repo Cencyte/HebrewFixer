@@ -996,8 +996,15 @@ FixBidiPastePerLine(text) {
 }
 
 FixBidiPasteLine(line) {
-    ; Reverse token order per line while preserving whitespace, and also fix letter order
-    ; inside Hebrew runs within each token.
+    ; Mixed-script handling:
+    ; If the line contains any Latin letters, we DO NOT reverse token order.
+    ; Reversing token order in mixed Hebrew+English tends to produce mirrored sentence-level swaps.
+    ; In that case we only fix Hebrew letter order inside Hebrew runs (run-level reversal).
+    if RegExMatch(line, "[A-Za-z]")
+        return ReverseHebrewRuns(line)
+
+    ; Otherwise (Hebrew-only / no Latin), reverse token order per line while preserving whitespace,
+    ; and also fix letter order inside Hebrew runs within each token.
 
     wsClass := "[ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]"  ; common Unicode spaces
 
@@ -1194,12 +1201,24 @@ $;::HandleHebrewKey(";")
 
 $*q::{
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}q")
+        return
+    }
     Send("{Blind}q")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*w::{
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}w")
+        return
+    }
     Send("{Blind}w")
     if g_UndoBufferEnabled
         TrackUndoKey()
@@ -1339,42 +1358,91 @@ $*0:: {
 
 $*-:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}-")
+        return
+    }
+
     Send("{Blind}-")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*=:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}=")
+        return
+    }
+
     Send("{Blind}=")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*[:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}[")
+        return
+    }
+
     Send("{Blind}[")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*]:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}]")
+        return
+    }
+
     Send("{Blind}]")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*\:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}\")
+        return
+    }
+
     Send("{Blind}\\")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*':: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}/")
+        return
+    }
+
     Send("{Blind}'")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
 $*/:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        Send("{Blind}{Text}``")
+        return
+    }
+
     Send("{Blind}/")
     if g_UndoBufferEnabled
         TrackUndoKey()
@@ -1382,6 +1450,13 @@ $*/:: {
 ; Backtick/tilde key tracking: use scancode to avoid escaping issues.
 $*SC029:: {
     global g_UndoBufferEnabled
+    if ShouldBypassShortcuts() {
+        if g_UndoBufferEnabled
+            ClearUndoBuffer()
+        ; Let app shortcuts like Ctrl+` pass through
+        Send("{Blind}{Text}``")
+        return
+    }
     ; Send a literal backtick. Shift+SC029 will produce ~ naturally due to {Blind}.
     Send("{Blind}{Text}``")
     if g_UndoBufferEnabled
