@@ -1278,6 +1278,118 @@ ReverseHebrewRuns(s) {
     return out
 }
 
+FixMixedScriptLine(line) {
+    ; Mixed-script token algorithm (for lines containing Latin letters):
+    ; - preserve whitespace
+    ; - narrow boundary repair for <LatinPrefix><HebrewTail> + <HebrewChar><LatinRun>
+    ; - reverse Hebrew runs within tokens
+    ; - reverse order of contiguous Hebrew-token runs only
+
+    global HF_WSCLASS
+
+    wsClass := HF_WSCLASS
+
+    tokens := []
+    seps := []
+
+    pos := 1
+    while RegExMatch(line, "([^" . wsClass . "]+)(" . wsClass . "*)", &m, pos) {
+        tokens.Push(m[1])
+        seps.Push(m[2])
+        pos := m.Pos[0] + m.Len[0]
+    }
+
+    if (tokens.Length = 0)
+        return line
+
+    ; Boundary repair
+    Loop tokens.Length - 1 {
+        iTok := A_Index
+        t1 := tokens[iTok]
+        t2 := tokens[iTok+1]
+
+        if RegExMatch(t1, "^([A-Za-z]{2,})(.+)$", &m1) {
+            latinPrefix := m1[1]
+            hebTail := m1[2]
+
+            allHeb := true
+            k := 1
+            while (k <= StrLen(hebTail)) {
+                if !IsHebrewChar(SubStr(hebTail, k, 1)) {
+                    allHeb := false
+                    break
+                }
+                k += 1
+            }
+
+            if allHeb {
+                if (StrLen(t2) >= 2 && IsHebrewChar(SubStr(t2, 1, 1))) {
+                    heb1 := SubStr(t2, 1, 1)
+                    rest := SubStr(t2, 2)
+                    if RegExMatch(rest, "^[A-Za-z]+$") {
+                        tokens[iTok] := latinPrefix . heb1 . hebTail
+                        tokens[iTok+1] := rest
+                    }
+                }
+            }
+        }
+    }
+
+    for i, t in tokens
+        tokens[i] := ReverseHebrewRuns(t)
+
+    IsHebTok(tok) {
+        k := 1
+        while (k <= StrLen(tok)) {
+            if IsHebrewChar(SubStr(tok, k, 1))
+                return true
+            k += 1
+        }
+        return false
+    }
+
+    i := 1
+    while (i <= tokens.Length) {
+        if !IsHebTok(tokens[i]) {
+            i += 1
+            continue
+        }
+        runStart := i
+        while (i <= tokens.Length && IsHebTok(tokens[i]))
+            i += 1
+        runEnd := i - 1
+
+        a := runStart
+        b := runEnd
+        while (a < b) {
+            tmp := tokens[a]
+            tokens[a] := tokens[b]
+            tokens[b] := tmp
+
+            sepIdxA := a
+            sepIdxB := b - 1
+            if (sepIdxA <= seps.Length && sepIdxB >= 1 && sepIdxA < sepIdxB) {
+                tmpS := seps[sepIdxA]
+                seps[sepIdxA] := seps[sepIdxB]
+                seps[sepIdxB] := tmpS
+            }
+
+            a += 1
+            b -= 1
+        }
+    }
+
+    out := ""
+    Loop tokens.Length {
+        out .= tokens[A_Index]
+        if (A_Index <= seps.Length)
+            out .= seps[A_Index]
+    }
+
+    return out
+}
+
+
 IsHebrewChar(ch) {
     code := Ord(ch)
     return (code >= 0x0590 && code <= 0x05FF)
