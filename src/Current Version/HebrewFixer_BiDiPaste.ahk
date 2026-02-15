@@ -8,7 +8,12 @@ SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
 global HF_VERSION := "0.9.0-dev"
+; Increment this when debugging build/source mismatches.
+global HF_BUILD_STAMP := "2026-02-15-mixed-latin-wsclassfix"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
+
+; Unicode whitespace class (explicit list; avoid regex ranges which can fail to compile on some systems)
+global HF_WSCLASS := "[ \t\x{00A0}\x{1680}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}\x{2006}\x{2007}\x{2008}\x{2009}\x{200A}\x{202F}\x{205F}\x{3000}]"
 
 ; Default toggle hotkey (store AHK syntax internally; show human string in UI)
 global HF_DEFAULT_TOGGLE_HOTKEY_AHK := "^!h"
@@ -955,6 +960,13 @@ ShouldBypassShortcuts() {
     return GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P")
 }
 
+global g_LastTransformStage := ""
+
+SetTransformStage(s) {
+    global g_LastTransformStage
+    g_LastTransformStage := s
+}
+
 DebugLog(msg) {
     global g_ConfigDir
     try {
@@ -996,17 +1008,27 @@ FixBidiPastePerLine(text) {
 }
 
 FixBidiPasteLine(line) {
+    SetTransformStage("FixBidiPasteLine:start")
     ; Mixed-script handling:
     ; If the line contains any Latin letters, we DO NOT reverse token order.
     ; Reversing token order in mixed Hebrew+English tends to produce mirrored sentence-level swaps.
     ; In that case we only fix Hebrew letter order inside Hebrew runs (run-level reversal).
-    if RegExMatch(line, "[A-Za-z]")
-        return ReverseHebrewRuns(line)
+    SetTransformStage("FixBidiPasteLine:latinCheck")
+    if RegExMatch(line, "[A-Za-z]") {
+        ; Mixed Latin+Hebrew: do NOT use full token reversal or Windows BiDi.
+        ; Use HebrewFixer mixed-script token algorithm:
+        ; - preserve whitespace
+        ; - reverse Hebrew runs within tokens
+        ; - reverse order of Hebrew tokens only within Hebrew-token runs
+        ; - apply a narrow boundary repair for the common pattern: <Latin><Hebrew> + <Hebrew><Latin>
+        SetTransformStage("FixBidiPasteLine:MixedScriptTokenAlgo")
+        return FixMixedScriptLine(line)
+    }
 
     ; Otherwise (Hebrew-only / no Latin), reverse token order per line while preserving whitespace,
     ; and also fix letter order inside Hebrew runs within each token.
 
-    wsClass := "[ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]"  ; common Unicode spaces
+    wsClass := HF_WSCLASS
 
     if RegExMatch(line, "^(" . wsClass . "*)(.*?)((?:" . wsClass . ")*)$", &m) {
         lead := m[1], core := m[2], trail := m[3]
@@ -1015,18 +1037,18 @@ FixBidiPasteLine(line) {
     }
 
     ; If core has no non-whitespace characters, return original.
-    if !RegExMatch(core, "[^ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]")
+    if !RegExMatch(core, "[^ \t\x{00A0}\x{1680}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}\x{2006}\x{2007}\x{2008}\x{2009}\x{200A}\x{202F}\x{205F}\x{3000}]")
         return line
 
     tokens := []
     seps := []  ; whitespace following each token
 
     pos := 1
-    pat := "([^ \t\x{00A0}\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]+)(" . wsClass . "*)"
+    pat := "([^ \t\x{00A0}\x{1680}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}\x{2006}\x{2007}\x{2008}\x{2009}\x{200A}\x{202F}\x{205F}\x{3000}]+)(" . wsClass . "*)"
     while RegExMatch(core, pat, &mm, pos) {
         tokens.Push(mm[1])
         seps.Push(mm[2])
-        pos := mm.Pos + mm.Len
+        pos := mm.Pos[0] + mm.Len[0]
     }
 
     if (tokens.Length <= 1) {
@@ -1053,34 +1075,206 @@ FixBidiPasteLine(line) {
     return lead . out . trail
 }
 
-ReverseHebrewRuns(s) {
-    ; Reverse character order inside Hebrew runs only.
-    ; This helps BiDi-unsupported targets display Hebrew tokens correctly.
+FixMixedLatinHebrewTokens(line) {
+    ; Heuristic fixups for mixed-script lines (Latin present) to better match Notepad's visual ordering.
+    ; We preserve exact whitespace and only rewrite within/around tokens.
 
-    out := ""
-    run := ""
-    runIsHeb := false
+    if (line = "")
+        return ""
 
-    chars := StrSplit(s)
-    for i, ch in chars {
-        isHeb := IsHebrewChar(ch)
-        if (i = 1) {
-            run := ch
-            runIsHeb := isHeb
-            continue
-        }
-        if (isHeb = runIsHeb) {
-            run .= ch
-        } else {
-            out .= runIsHeb ? ReverseString(run) : run
-            run := ch
-            runIsHeb := isHeb
-        }
+    wsClass := HF_WSCLASS
+
+    ; Preserve leading/trailing whitespace
+    if RegExMatch(line, "^(" . wsClass . "*)(.*?)((?:" . wsClass . ")*)$", &m) {
+        lead := m[1], core := m[2], trail := m[3]
+    } else {
+        lead := "", core := line, trail := ""
     }
 
-    if (run != "")
-        out .= runIsHeb ? ReverseString(run) : run
+    if (core = "")
+        return line
 
+    ; Tokenize into arrays so we can look behind.
+    tokens := []
+    seps := []
+    pos := 1
+    pat := "([^" . wsClass . "]+)(" . wsClass . "*)"
+    while RegExMatch(core, pat, &mm, pos) {
+        tokens.Push(mm[1])
+        seps.Push(mm[2])
+        pos := mm.Pos[0] + mm.Len[0]
+    }
+
+    if (tokens.Length = 0)
+        return line
+
+    ; Helper: does s consist only of Latin letters?
+    IsLatinRun(s) {
+        return RegExMatch(s, "^[A-Za-z]+$")
+    }
+
+    ; Helper: split prev token into latinPrefix + hebrewTail if it matches that shape.
+    SplitLatinPrefixHebrewTail(s, &latinPrefix, &hebrewTail) {
+        latinPrefix := ""
+        hebrewTail := ""
+        if (s = "")
+            return false
+
+        i := 1
+        ; Latin prefix
+        while (i <= StrLen(s)) {
+            ch := SubStr(s, i, 1)
+            if RegExMatch(ch, "[A-Za-z]") {
+                latinPrefix .= ch
+                i += 1
+                continue
+            }
+            break
+        }
+
+        if (latinPrefix = "")
+            return false
+
+        hebrewTail := SubStr(s, i)
+        if (hebrewTail = "")
+            return false
+
+        ; Ensure remaining is all Hebrew
+        Loop StrLen(hebrewTail) {
+            if !IsHebrewChar(SubStr(hebrewTail, A_Index, 1))
+                return false
+        }
+        return true
+    }
+
+    ; Main pass
+    Loop tokens.Length {
+        i := A_Index
+        tok := tokens[i]
+
+        ; Case A: token begins with one Hebrew char + Latin run (e.g. דD)
+        ; If previous token is LatinPrefix+HebrewTail (e.g. FFFםםםדדגללל), move that Hebrew char into prev after Latin prefix.
+        if (i > 1 && StrLen(tok) >= 2 && IsHebrewChar(SubStr(tok, 1, 1))) {
+            heb1 := SubStr(tok, 1, 1)
+            rest := SubStr(tok, 2)
+            if IsLatinRun(rest) {
+                prev := tokens[i-1]
+                latinPrefix := "", hebTail := ""
+                if SplitLatinPrefixHebrewTail(prev, &latinPrefix, &hebTail) {
+                    ; Move the Hebrew letter into the previous token after its Latin prefix.
+                    tokens[i-1] := latinPrefix . heb1 . hebTail
+
+                    ; If the Latin part is a single letter (e.g. דD) and there's a simple single space
+                    ; between prev and this token, it's usually intended to be attached to the previous
+                    ; mixed token (Notepad visual often shows ...D with no space). Merge it.
+                    if (StrLen(rest) = 1 && seps[i-1] = " ") {
+                        tokens[i-1] .= rest
+                        ; Remove this token; transfer its separator to the previous token.
+                        seps[i-1] := seps[i]
+                        tokens.RemoveAt(i)
+                        seps.RemoveAt(i)
+                        ; Adjust loop since we shortened arrays
+                        continue
+                    }
+
+                    ; Otherwise keep the Latin run as its own token.
+                    tokens[i] := rest
+                    continue
+                }
+
+                ; Otherwise simple swap within token: דD -> Dד
+                tokens[i] := rest . heb1
+                continue
+            }
+        }
+
+        ; Case B: already handled by other pipeline; leave token unchanged.
+    }
+
+    out := ""
+    Loop tokens.Length {
+        out .= tokens[A_Index] . seps[A_Index]
+    }
+
+    if (out = "")
+        return line
+
+    return lead . out . trail
+}
+
+WindowsBidiReorderRTL(s) {
+    ; Use GetCharacterPlacementW to apply Windows' BiDi algorithm and return a visual-order string
+    ; appropriate for an RTL run. Works well for mixed Hebrew+Latin+numbers.
+
+    if (s = "")
+        return ""
+
+    ; Acquire a screen DC for the call.
+    hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+    if !hdc
+        return s
+
+    ; Prepare input as UTF-16.
+    len := StrLen(s)
+    bufIn := Buffer((len + 1) * 2, 0)
+    StrPut(s, bufIn, "UTF-16")
+
+    ; Output buffers
+    bufOut := Buffer((len + 1) * 2, 0)
+
+    ; GCP_RESULTS struct (we only need lpOutString)
+    ; typedef struct { DWORD lStructSize; LPTSTR lpOutString; UINT *lpOrder; int *lpDx; int *lpCaretPos; LPSTR lpClass; LPWSTR lpGlyphs; int nGlyphs; int nMaxFit; } GCP_RESULTS;
+    gcp := Buffer(A_PtrSize = 8 ? 72 : 40, 0)
+    NumPut("UInt", gcp.Size, gcp, 0)
+    ; lpOutString at offset 8 on x64 (DWORD+padding), 4 on x86
+    offOut := (A_PtrSize = 8) ? 8 : 4
+    NumPut("Ptr", bufOut.Ptr, gcp, offOut)
+
+    ; Flags
+    GCP_REORDER := 0x0002
+    GCP_RTLREADING := 0x0080
+
+    ; Call
+    ok := DllCall("GetCharacterPlacementW"
+        , "Ptr", hdc
+        , "Ptr", bufIn.Ptr
+        , "Int", len
+        , "Int", 0
+        , "Ptr", gcp.Ptr
+        , "UInt", GCP_REORDER | GCP_RTLREADING
+        , "UInt")
+
+    DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
+
+    if (!ok)
+        return s
+
+    return StrGet(bufOut, "UTF-16")
+}
+
+ReverseHebrewRuns(s) {
+    ; Reverse characters only within contiguous Hebrew runs, using codepoint checks (no regex ranges).
+    out := ""
+    i := 1
+    while (i <= StrLen(s)) {
+        ch := SubStr(s, i, 1)
+        if IsHebrewChar(ch) {
+            j := i
+            while (j <= StrLen(s) && IsHebrewChar(SubStr(s, j, 1)))
+                j += 1
+            run := SubStr(s, i, j - i)
+            ; reverse run
+            k := StrLen(run)
+            while (k >= 1) {
+                out .= SubStr(run, k, 1)
+                k -= 1
+            }
+            i := j
+        } else {
+            out .= ch
+            i += 1
+        }
+    }
     return out
 }
 
@@ -1705,31 +1899,49 @@ $^y::{
 
 ; Paste
 $^v::{
+    global g_UndoBufferEnabled
+
     clipText := A_Clipboard
+    DebugLog("BUILD=" . HF_BUILD_STAMP)
     DebugLog("Paste hotkey fired. proc=" . GetActiveProcessName() . " | title=" . GetActiveWindowTitle())
     DebugLog("Paste clipLen=" . StrLen(clipText) . " sample=" . SubStr(clipText, 1, 60))
+
     if !ClipboardContainsHebrew(clipText) {
         DebugLog("Paste: no Hebrew detected; pass-through")
         Send("{Blind}^v")
         return
     }
 
-    processed := FixBidiPastePerLine(clipText)
-    if (processed = clipText) {
-        DebugLog("Paste: Hebrew detected but transform produced identical output")
-        DebugLog("Paste processed sample=" . SubStr(processed, 1, 60))
-    } else {
-        DebugLog("Paste: Hebrew detected; transform applied")
-        DebugLog("Paste processed sample=" . SubStr(processed, 1, 60))
-    }
-
     savedClip := ClipboardAll()
-    A_Clipboard := processed
-    if ClipWait(1) {
+    processed := ""
+
+    try {
+        processed := FixBidiPastePerLine(clipText)
+        DebugLog("Paste processedLen=" . StrLen(processed) . " sample=" . SubStr(processed, 1, 60))
+
+        if (processed = "") {
+            throw Error("Transform returned empty string")
+        }
+
+        A_Clipboard := processed
+        if ClipWait(1) {
+            Send("{Blind}^v")
+            Sleep(50)
+        }
+    } catch as e {
+        DebugLog("Paste ERROR at stage=" . g_LastTransformStage)
+        DebugLog("Paste ERROR: " . e.Message)
+        try DebugLog("Paste ERROR extra: " . e.Extra)
+        try DebugLog("Paste ERROR what: " . e.What)
+        try DebugLog("Paste ERROR file/line: " . e.File . ":" . e.Line)
+
+        ; Fallback: restore original clipboard and paste normally
+        A_Clipboard := clipText
+        ClipWait(1)
         Send("{Blind}^v")
-        Sleep(50)
+    } finally {
+        A_Clipboard := savedClip
     }
-    A_Clipboard := savedClip
 
     ; Paste can alter undo history unpredictably; invalidate.
     if g_UndoBufferEnabled
