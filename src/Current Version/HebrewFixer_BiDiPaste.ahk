@@ -1083,9 +1083,10 @@ FixMixedLatinHebrewTokens(line) {
         return ""
 
     wsClass := HF_WSCLASS
+    wsChars := SubStr(wsClass, 2, StrLen(wsClass) - 2)
 
     ; Preserve leading/trailing whitespace
-    if RegExMatch(line, "^(" . wsClass . "*)(.*?)((?:" . wsClass . ")*)$", &m) {
+    if RegExMatch(line, "^([" . wsChars . "]*)(.*?)(([" . wsChars . "])*)$", &m) {
         lead := m[1], core := m[2], trail := m[3]
     } else {
         lead := "", core := line, trail := ""
@@ -1098,7 +1099,7 @@ FixMixedLatinHebrewTokens(line) {
     tokens := []
     seps := []
     pos := 1
-    pat := "([^" . wsClass . "]+)(" . wsClass . "*)"
+    pat := "([^" . wsChars . "]+)([" . wsChars . "]*)"
     while RegExMatch(core, pat, &mm, pos) {
         tokens.Push(mm[1])
         seps.Push(mm[2])
@@ -1287,12 +1288,14 @@ FixMixedScriptLine(line) {
 
     global HF_WSCLASS
     wsClass := HF_WSCLASS
+    wsChars := SubStr(wsClass, 2, StrLen(wsClass) - 2)  ; strip surrounding [ ]
 
     tokens := []
     seps := []
 
     pos := 1
-    while RegExMatch(line, "([^" . wsClass . "]+)(" . wsClass . "*)", &m, pos) {
+    pat := "([^" . wsChars . "]+)([" . wsChars . "]*)"
+    while RegExMatch(line, pat, &m, pos) {
         tokens.Push(m[1])
         seps.Push(m[2])
         pos := m.Pos[0] + m.Len[0]
@@ -1327,8 +1330,11 @@ FixMixedScriptLine(line) {
                     heb1 := SubStr(t2, 1, 1)
                     rest := SubStr(t2, 2)
                     if RegExMatch(rest, "^[A-Za-z]+$") {
-                        tokens[iTok] := latinPrefix . heb1 . hebTail
-                        tokens[iTok+1] := rest
+                        ; IMPORTANT mixed-script boundary repair:
+                        ; Split into: <LatinPrefix><Heb1>  and  <HebTail><LatinRun>
+                        ; This yields e.g. "FFF" + "ד" and "םםםדדגללל" + "D".
+                        tokens[iTok] := latinPrefix . heb1
+                        tokens[iTok+1] := hebTail . rest
                     }
                 }
             }
@@ -1336,8 +1342,27 @@ FixMixedScriptLine(line) {
     }
 
     ; Reverse Hebrew runs within tokens
-    for i, t in tokens
-        tokens[i] := ReverseHebrewRuns(t)
+    ; Also log before/after for the first few tokens to prove the reversal is happening.
+    Loop Min(3, tokens.Length) {
+        idx := A_Index
+        before := tokens[idx]
+        after := ReverseHebrewRuns(before)
+        tokens[idx] := after
+
+        if (before != after)
+            DebugLog("MixedScript tok" . idx . " before=" . before . " | after=" . after)
+        else if ClipboardContainsHebrew(before)
+            DebugLog("MixedScript tok" . idx . " contains Hebrew but did not change (check IsHebrewChar/ReverseHebrewRuns)")
+    }
+
+    ; Apply reversal for remaining tokens
+    if (tokens.Length > 3) {
+        i := 4
+        while (i <= tokens.Length) {
+            tokens[i] := ReverseHebrewRuns(tokens[i])
+            i += 1
+        }
+    }
 
     out := ""
     Loop tokens.Length {
