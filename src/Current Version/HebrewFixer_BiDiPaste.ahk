@@ -1144,8 +1144,11 @@ HttpGetResponseText(http) {
         stm.Close()
         return txt
     } catch {
-        try return http.ResponseText
-        catch return ""
+        try {
+            return http.ResponseText
+        } catch {
+            return ""
+        }
     }
 }
 
