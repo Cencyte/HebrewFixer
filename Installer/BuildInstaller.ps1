@@ -18,8 +18,8 @@ param(
     [string]$IssFile = "$(Join-Path $PSScriptRoot 'HebrewFixer_Setup.iss')",
     [string]$OutDir = "$(Join-Path $PSScriptRoot '..\\bin')",
     [string]$OutFileName = "HebrewFixer_Setup.exe",
-    [int]$BuildRetries = 3,
-    [int]$BuildRetryDelayMs = 400,
+    [int]$BuildRetries = 8,
+    [int]$BuildRetryDelayMs = 650,
     [int]$ReplaceRetries = 8,
     [int]$ReplaceRetryDelayMs = 300
 )
