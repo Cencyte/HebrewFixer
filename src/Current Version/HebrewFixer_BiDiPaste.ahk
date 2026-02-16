@@ -595,9 +595,7 @@ ShowSettingsGui() {
     btnSave.OnEvent("Click", (*) => (
         SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv)
     ))
-    btnCancel.OnEvent("Click", (*) => (StopRecordMode(true), settingsGui.Destroy()))
-
-    settingsGui.OnEvent("Close", (*) => StopRecordMode(true))
+    btnCancel.OnEvent("Click", (*) => settingsGui.Destroy())
 
     settingsGui.Show()
 }
