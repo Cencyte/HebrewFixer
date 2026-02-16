@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.14"
+global HF_VERSION := "v1.0.16"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -70,6 +70,7 @@ global g_ConfigIni := ""
 global g_UpdateMenuLabel := ""
 
 global g_GithubRepoUrl := "https://github.com/Cencyte/HebrewFixer"
+global g_GithubReleasesUrl := "https://github.com/Cencyte/HebrewFixer/releases/"
 
 ; Hebrew keyboard layout mapping (US QWERTY physical keys → Hebrew chars)
 global HebrewMap := Map(
@@ -2319,7 +2320,7 @@ EnsureUpdateMenuItem(latestTag) {
     }
 
     A_TrayMenu.Add()
-    A_TrayMenu.Add(newLabel, (*) => Run(g_GithubRepoUrl))
+    A_TrayMenu.Add(newLabel, (*) => Run(g_GithubReleasesUrl))
     g_UpdateMenuLabel := newLabel
 }
 
@@ -2395,7 +2396,7 @@ ShowUpdateBanner(latestTag) {
     banner.SetFont("s9 Norm", "Segoe UI")
     t2 := banner.AddText("x" . tx . " y+4 w" . (w - tx - 20) . " c404040", "Click to open GitHub")
 
-    open := (*) => (Run(g_GithubRepoUrl), banner.Destroy())
+    open := (*) => (Run(g_GithubReleasesUrl), banner.Destroy())
     t.OnEvent("Click", open)
     t2.OnEvent("Click", open)
     banner.OnEvent("Click", open)
