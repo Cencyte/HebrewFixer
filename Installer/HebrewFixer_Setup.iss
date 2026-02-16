@@ -13,8 +13,8 @@
 
 [Setup]
 AppName=HebrewFixer
-AppVersion=1.0.18
-AppVerName=HebrewFixer 1.0.18
+AppVersion=1.0.20
+AppVerName=HebrewFixer 1.0.20
 AppPublisher=Cencyte
 AppPublisherURL=https://github.com/Cencyte/HebrewFixer
 AppSupportURL=https://github.com/Cencyte/HebrewFixer/issues
@@ -65,10 +65,10 @@ Source: "..\Icon\ICOs\hebrew_fixer_affinity_off.ico"; DestDir: "{app}"; DestName
 
 [Icons]
 ; Start Menu entries (optional)
-Name: "{group}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: startmenu
-Name: "{group}\Uninstall HebrewFixer"; Filename: "{uninstallexe}"; Tasks: startmenu
+Name: "{group}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: startmenu; AppUserModelID: "Cencyte.HebrewFixer"
+Name: "{group}\Uninstall HebrewFixer"; Filename: "{uninstallexe}"; Tasks: startmenu; AppUserModelID: "Cencyte.HebrewFixer"
 ; Desktop shortcut (optional)
-Name: "{autodesktop}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: desktopicon
+Name: "{autodesktop}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFilename: "{app}\hebrew_fixer_on.ico"; Tasks: desktopicon; AppUserModelID: "Cencyte.HebrewFixer"
 ; Startup folder entry (runs at Windows startup)
 Name: "{userstartup}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; Tasks: startup
 

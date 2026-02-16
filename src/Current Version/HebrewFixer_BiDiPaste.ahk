@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.18"
+global HF_VERSION := "v1.0.20"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -71,6 +71,7 @@ global g_UpdateMenuLabel := ""
 
 global g_GithubRepoUrl := "https://github.com/Cencyte/HebrewFixer"
 global g_GithubReleasesUrl := "https://github.com/Cencyte/HebrewFixer/releases/"
+global HF_AUMID := "Cencyte.HebrewFixer"
 
 ; Hebrew keyboard layout mapping (US QWERTY physical keys → Hebrew chars)
 global HebrewMap := Map(
@@ -109,6 +110,7 @@ global HebrewMap := Map(
 
 InitConfigPaths()
 LoadSettings()
+SetAppUserModelId()
 
 for arg in A_Args {
     if (arg = "/NoTooltip" || arg = "-NoTooltip" || arg = "--NoTooltip") {
@@ -2291,15 +2293,20 @@ CheckForUpdatesImpl(force := false) {
             }
         }
 
-        ; Ensure tray menu item even if banner fails.
+        ; Ensure tray menu item even if notifications fail.
         EnsureUpdateMenuItem(latest)
 
+        ; Prefer native Windows toast (clickable). Fall back to custom banner.
         try {
-            ShowUpdateBanner(latest)
+            ShowNativeUpdateToast(latest)
         } catch as e {
-            try DebugLog("UpdateCheck: ShowUpdateBanner failed: " . e.Message)
-            ; Fallback notification
-            try TrayTip("Update available: " . latest, "HebrewFixer")
+            try DebugLog("UpdateCheck: ShowNativeUpdateToast failed: " . e.Message)
+            try {
+                ShowUpdateBanner(latest)
+            } catch as e2 {
+                try DebugLog("UpdateCheck: ShowUpdateBanner failed: " . e2.Message)
+                try TrayTip("Update available: " . latest, "HebrewFixer")
+            }
         }
 
     } catch as e {
@@ -2351,6 +2358,61 @@ GetBootId() {
     } catch {
         return ""
     }
+}
+
+SetAppUserModelId() {
+    global HF_AUMID
+    try {
+        ; Helps Windows attribute toast notifications correctly for unpackaged desktop apps.
+        DllCall("shell32\\SetCurrentProcessExplicitAppUserModelID", "Str", HF_AUMID)
+    } catch {
+        ; ignore
+    }
+}
+
+ShowNativeUpdateToast(latestTag) {
+    global g_GithubReleasesUrl, HF_AUMID, g_ConfigDir
+
+    ; Use a native Win10/11 toast via WinRT (PowerShell) with protocol activation.
+    ; Clicking the toast opens the releases URL in the default browser.
+    title := "HebrewFixer update available"
+    body := "New version: " . latestTag . "  (click to open Releases)"
+    url := g_GithubReleasesUrl
+
+    ; Escape for PowerShell single-quoted strings by doubling single quotes.
+    titlePS := StrReplace(title, "'", "''")
+    bodyPS := StrReplace(body, "'", "''")
+    urlPS := StrReplace(url, "'", "''")
+    aumidPS := StrReplace(HF_AUMID, "'", "''")
+
+    ps := "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null`n"
+    ps .= "[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null`n"
+    ps .= "$xml = @'`n"
+    ps .= "<toast activationType='protocol' launch='" . urlPS . "'>`n"
+    ps .= "  <visual>`n"
+    ps .= "    <binding template='ToastGeneric'>`n"
+    ps .= "      <text>" . titlePS . "</text>`n"
+    ps .= "      <text>" . bodyPS . "</text>`n"
+    ps .= "    </binding>`n"
+    ps .= "  </visual>`n"
+    ps .= "</toast>`n"
+    ps .= "'@`n"
+    ps .= "$doc = New-Object Windows.Data.Xml.Dom.XmlDocument; $doc.LoadXml($xml)`n"
+    ps .= "$toast = New-Object Windows.UI.Notifications.ToastNotification $doc`n"
+    ps .= "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('" . aumidPS . "').Show($toast)`n"
+
+    ; Write to a temp .ps1 to avoid quoting/length issues.
+    tmp := g_ConfigDir . "\\tmp_hf_toast.ps1"
+    try {
+        if FileExist(tmp)
+            FileDelete(tmp)
+    } catch {
+        ; ignore
+    }
+    FileAppend(ps, tmp, "UTF-8-RAW")
+
+    cmd := "powershell.exe -NoProfile -ExecutionPolicy Bypass -File " . Chr(34) . tmp . Chr(34)
+    RunWait(cmd, , "Hide")
 }
 
 ShowUpdateBanner(latestTag) {
