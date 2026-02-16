@@ -13,8 +13,8 @@
 
 [Setup]
 AppName=HebrewFixer
-AppVersion=1.0.6
-AppVerName=HebrewFixer 1.0.6
+AppVersion=1.0.7
+AppVerName=HebrewFixer 1.0.7
 AppPublisher=Cencyte
 AppPublisherURL=https://github.com/Cencyte/HebrewFixer
 AppSupportURL=https://github.com/Cencyte/HebrewFixer/issues
@@ -24,7 +24,7 @@ DefaultDirName={localappdata}\HebrewFixer
 DefaultGroupName=HebrewFixer
 OutputDir=..\bin
 OutputBaseFilename=HebrewFixer_Setup
-SetupIconFile=..\Icon\ICOs\hebrew_fixer_affinity_on.ico
+SetupIconFile=..\Icon\ICOs\hebrew_fixer_affinity_off.ico
 ; Programs & Features icon (appwiz.cpl) is taken from this path.
 ; NOTE: Our installed EXE is renamed to HebrewFixer1998.exe in [Files].
 UninstallDisplayIcon={app}\HebrewFixer1998.exe

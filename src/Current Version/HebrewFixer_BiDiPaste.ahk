@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.6"
+global HF_VERSION := "v1.0.7"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -607,22 +607,41 @@ UpdateTray() {
     if g_AutoEnable
         A_IconTip .= " [Auto" . (g_AutoEnableAllApps ? ":All]" : ":Whitelist]")
 
-    ; When running as a raw .ahk script, the icon isn't embedded like the compiled EXE.
-    ; Use repo icons (relative to this file: src\Current Version -> ..\..\Icon\ICOs).
-    iconDir := A_ScriptDir . "\\..\\..\\Icon\\ICOs\\"
+    ; Icon resolution:
+    ; - Installed EXE: Inno Setup deploys {app}\hebrew_fixer_on.ico and {app}\hebrew_fixer_off.ico
+    ;   (A_ScriptDir is {app} for compiled builds)
+    ; - Dev/source run: fall back to repo icons at ..\..\Icon\ICOs\
 
-    ; Prefer Affinity-branded icons.
-    onIco := iconDir . "hebrew_fixer_affinity_on.ico"
-    offIco := iconDir . "hebrew_fixer_affinity_off.ico"
-    ; Fallback to generic icons if needed.
-    if !FileExist(onIco)
-        onIco := iconDir . "hebrew_fixer_on.ico"
-    if !FileExist(offIco)
-        offIco := iconDir . "hebrew_fixer_off.ico"
+    ; 1) Installed paths
+    onIco := A_ScriptDir . "\\hebrew_fixer_on.ico"
+    offIco := A_ScriptDir . "\\hebrew_fixer_off.ico"
 
-    try TraySetIcon(g_Enabled ? onIco : offIco)
-    catch {
-        ; ignore
+    ; 2) Dev/source fallback
+    if !FileExist(onIco) || !FileExist(offIco) {
+        iconDir := A_ScriptDir . "\\..\\..\\Icon\\ICOs\\"
+        onIco2 := iconDir . "hebrew_fixer_affinity_on.ico"
+        offIco2 := iconDir . "hebrew_fixer_affinity_off.ico"
+        if !FileExist(onIco2)
+            onIco2 := iconDir . "hebrew_fixer_on.ico"
+        if !FileExist(offIco2)
+            offIco2 := iconDir . "hebrew_fixer_off.ico"
+
+        if FileExist(onIco2)
+            onIco := onIco2
+        if FileExist(offIco2)
+            offIco := offIco2
+    }
+
+    chosen := g_Enabled ? onIco : offIco
+    if !FileExist(chosen) {
+        try DebugLog("TrayIcon: missing file: " . chosen)
+        return
+    }
+
+    try {
+        TraySetIcon(chosen)
+    } catch as e {
+        try DebugLog("TrayIcon: TraySetIcon failed: " . e.Message . " | file=" . chosen)
     }
 }
 
