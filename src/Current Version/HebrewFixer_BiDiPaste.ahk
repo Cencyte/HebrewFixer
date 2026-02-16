@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.1"
+global HF_VERSION := "v1.0.2"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -479,11 +479,20 @@ SetupTray() {
 
     A_TrayMenu.Add()
     A_TrayMenu.Add("Copy diagnostic info", (*) => CopyDiagnosticInfo())
+    A_TrayMenu.Add("About…", (*) => ShowAboutDialog())
 
     A_TrayMenu.Add()
     A_TrayMenu.Add("Exit", (*) => ExitApp())
 
     UpdateTray()
+}
+
+ShowAboutDialog() {
+    global HF_VERSION, g_GithubRepoUrl
+    msg := "HebrewFixer`n`nVersion: " . HF_VERSION
+    if (g_GithubRepoUrl != "")
+        msg .= "`n`n" . g_GithubRepoUrl
+    MsgBox(msg, "About HebrewFixer", "Iconi")
 }
 
 UpdateTray() {
