@@ -281,7 +281,7 @@ HumanHotkeyToAhk(human) {
     return mods . key
 }
 
-CaptureHotkeyHuman() {
+CaptureHotkeyHuman(updateCtrl := "") {
     ; Records a shortcut as:
     ; - user may tap modifiers in any order (Ctrl/Alt/Shift/Win)
     ; - recording ends when a non-modifier key is pressed
@@ -301,6 +301,22 @@ CaptureHotkeyHuman() {
 
     selected := Map()  ; canonical modifier -> true
 
+    UpdatePreview(key := "") {
+        if (updateCtrl = "")
+            return
+        order := ["Ctrl", "Alt", "Shift", "Win"]
+        out := ""
+        for _, m in order {
+            if selected.Has(m)
+                out .= m . "+"
+        }
+        if (key != "")
+            out .= key
+        updateCtrl.Value := out
+    }
+
+    UpdatePreview()
+
     Loop {
         ih.Start()
         ih.Wait()
@@ -319,6 +335,7 @@ CaptureHotkeyHuman() {
                 selected.Delete(m)
             else
                 selected[m] := true
+            UpdatePreview()
             continue
         }
 
@@ -343,7 +360,9 @@ CaptureHotkeyHuman() {
             out .= m . "+"
     }
 
-    return out . key
+    out := out . key
+    UpdatePreview(key)
+    return out
 }
 
 ; =============================================================================
@@ -658,7 +677,7 @@ ShowSettingsGui() {
     ))
 
     btnRecord.OnEvent("Click", (*) => (
-        hk := CaptureHotkeyHuman(),
+        hk := CaptureHotkeyHuman(hotkeyEdit),
         (hk != "") ? (hotkeyEdit.Value := hk) : 0
     ))
 
