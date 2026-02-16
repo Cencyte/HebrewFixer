@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "0.9.0-dev"
+global HF_VERSION := "v1.0.1"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -1313,7 +1313,7 @@ ReverseString(s) {
 ; HOTKEYS (Affinity only, enabled)
 ; =============================================================================
 
-#HotIf g_Enabled && IsAutoEnableAllowedForActiveApp()
+#HotIf g_Enabled && IsAutoEnableAllowedForActiveApp() && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P")  ; allow all Win+ shortcuts to pass through
 ; (Per-key typing / navigation / undo-buffer remain whitelisted-only)
 
 
