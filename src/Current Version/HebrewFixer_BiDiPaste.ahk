@@ -51,6 +51,7 @@ global g_PollPauseHwnd := 0
 ; Settings GUI focus guard: prevent toggle hotkey firing while editing shortcut field.
 global g_SettingsGuiHwnd := 0
 global g_SettingsHotkeyCtrlHwnd := 0
+global g_ToggleHotkeyWasDisabled := false
 
 ; Stable layout polling state (Option B: accept change after 2 consecutive polls)
 global g_LastStableLangId := 0
@@ -568,6 +569,14 @@ ShowSettingsGui() {
     ; store HWNDs so we can suppress global toggle while user is editing this control
     g_SettingsGuiHwnd := settingsGui.Hwnd
     try g_SettingsHotkeyCtrlHwnd := hotkeyCtrl.Hwnd
+
+    ; Bulletproof: disable the global toggle hotkey while Settings is open.
+    try {
+        if (g_ToggleHotkey != "") {
+            Hotkey(g_ToggleHotkey, "Off")
+            g_ToggleHotkeyWasDisabled := true
+        }
+    }
     cbAuto := settingsGui.AddCheckbox("xm y+14", "Auto-enable on Hebrew keyboard")
     cbAuto.Value := g_AutoEnable
 
@@ -601,9 +610,19 @@ ShowSettingsGui() {
     btnSave.OnEvent("Click", (*) => (
         SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv)
     ))
-    btnCancel.OnEvent("Click", (*) => settingsGui.Destroy())
+    btnCancel.OnEvent("Click", (*) => (RestoreToggleHotkeyAfterSettings(), settingsGui.Destroy()))
+
+    settingsGui.OnEvent("Close", (*) => RestoreToggleHotkeyAfterSettings())
 
     settingsGui.Show()
+}
+
+RestoreToggleHotkeyAfterSettings() {
+    global g_ToggleHotkey, g_ToggleHotkeyWasDisabled
+    if g_ToggleHotkeyWasDisabled {
+        try Hotkey(g_ToggleHotkey, "On")
+        g_ToggleHotkeyWasDisabled := false
+    }
 }
 
 SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
@@ -645,6 +664,8 @@ SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
 
     SaveSettings()
     SetupTray()  ; rebuild tray menu so the hotkey label updates immediately
+
+    RestoreToggleHotkeyAfterSettings()
     settingsGui.Destroy()
     g_SettingsGuiHwnd := 0
     g_SettingsHotkeyCtrlHwnd := 0
