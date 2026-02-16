@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.11"
+global HF_VERSION := "v1.0.13"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -1156,7 +1156,10 @@ SaveUpdateResponseDump(body) {
     global g_ConfigDir
     try {
         path := g_ConfigDir . "\\hf_update_last_response.json"
-        FileDelete(path)
+        ; FileDelete throws if file doesn't exist; ignore that.
+        if FileExist(path) {
+            try FileDelete(path)
+        }
         FileAppend(body, path, "UTF-8-RAW")
         DebugLog("UpdateCheck: wrote full response to: " . path)
     } catch as e {
