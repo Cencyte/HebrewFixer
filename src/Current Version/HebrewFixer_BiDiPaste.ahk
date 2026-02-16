@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.16"
+global HF_VERSION := "v1.0.18"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -2399,7 +2399,10 @@ ShowUpdateBanner(latestTag) {
     open := (*) => (Run(g_GithubReleasesUrl), banner.Destroy())
     t.OnEvent("Click", open)
     t2.OnEvent("Click", open)
-    banner.OnEvent("Click", open)
+
+    ; Make the banner body clickable: add an invisible full-size text control behind the close button.
+    overlay := banner.AddText("x0 y0 w" . (w - 32) . " h" . h . " BackgroundTrans", "")
+    overlay.OnEvent("Click", open)
 
     banner.Show("x" . x . " y" . y . " w" . w . " h" . h . " NoActivate")
 
