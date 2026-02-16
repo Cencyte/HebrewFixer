@@ -125,7 +125,10 @@ for ($attempt = 1; $attempt -le $BuildRetries; $attempt++) {
     }
 
     # Retry resource-update errors which can happen when Windows has a transient lock.
-    if ($stdout -match 'EndUpdateResource failed \(\d+\)' -or $stderr -match 'EndUpdateResource failed \(\d+\)') {
+    if (
+        $stdout -match 'EndUpdateResource failed \(\d+\)' -or $stderr -match 'EndUpdateResource failed \(\d+\)' -or
+        $stdout -match 'being used by another process' -or $stderr -match 'being used by another process'
+    ) {
         if ($attempt -lt $BuildRetries) {
             Log "ISCC resource update error (110). Retrying after ${BuildRetryDelayMs}ms..."
             Start-Sleep -Milliseconds $BuildRetryDelayMs

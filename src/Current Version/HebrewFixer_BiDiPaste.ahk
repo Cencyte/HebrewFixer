@@ -395,6 +395,10 @@ LoadWhitelistFromIni() {
     raw := IniRead(g_ConfigIni, "Whitelist", "Processes", "")
     raw := StrReplace(raw, "`r", "")
 
+    ; Accept legacy newline-separated format and new single-line pipe/comma-separated format.
+    raw := StrReplace(raw, "|", "`n")
+    raw := StrReplace(raw, ",", "`n")
+
     for _, line in StrSplit(raw, "`n") {
         p := Trim(line)
         if (p != "")
@@ -417,11 +421,80 @@ LoadWhitelistFromIni() {
 
 SaveWhitelistToIni() {
     global g_ConfigIni, g_Whitelist
-    raw := ""
+
+    ; Store as a single-line value to avoid INI multiline quirks that can leave stale lines behind.
+    procs := []
     for proc, _ in g_Whitelist
-        raw .= proc . "`n"
-    raw := RTrim(raw, "`n")
+        procs.Push(proc)
+    raw := StrJoin("|", procs*)
+
     IniWrite(raw, g_ConfigIni, "Whitelist", "Processes")
+
+    ; Canonicalize the [Whitelist] section to remove any previously-stale extra lines (e.g. repeated Designer.exe).
+    CanonicalizeWhitelistSection()
+}
+
+StrJoin(sep, vals*) {
+    out := ""
+    for i, v in vals {
+        if (i > 1)
+            out .= sep
+        out .= v
+    }
+    return out
+}
+
+CanonicalizeWhitelistSection() {
+    global g_ConfigIni
+
+    try {
+        txt := FileRead(g_ConfigIni, "UTF-8")
+    } catch {
+        return
+    }
+
+    lines := StrSplit(txt, "`n", false)
+    out := []
+    inWL := false
+    keptProcesses := false
+
+    for _, line in lines {
+        lineNoCR := StrReplace(line, "`r", "")
+        if RegExMatch(lineNoCR, "^\\s*\\[Whitelist\\]\\s*$") {
+            inWL := true
+            keptProcesses := false
+            out.Push("[Whitelist]")
+            continue
+        }
+
+        if (inWL && RegExMatch(lineNoCR, "^\\s*\\[")) {
+            ; next section
+            inWL := false
+        }
+
+        if (inWL) {
+            ; keep only the single Processes=... line
+            if (!keptProcesses && RegExMatch(lineNoCR, "^\\s*Processes\\s*=")) {
+                out.Push(lineNoCR)
+                keptProcesses := true
+            }
+            continue
+        }
+
+        out.Push(lineNoCR)
+    }
+
+    newTxt := StrJoin("`n", out*)
+    ; Ensure trailing newline
+    if (SubStr(newTxt, -1) != "`n")
+        newTxt .= "`n"
+
+    try {
+        FileDelete(g_ConfigIni)
+        FileAppend(newTxt, g_ConfigIni, "UTF-8-RAW")
+    } catch {
+        return
+    }
 }
 
 ; Ensure settings.ini is UTF-8 without BOM (and convert UTF-16LE if needed).
