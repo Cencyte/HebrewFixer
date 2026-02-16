@@ -38,12 +38,15 @@ global g_AutoEnable := true
 global g_AutoEnableAllApps := false
 global g_Whitelist := Map()  ; procName -> true
 
-global g_ManualOverride := false
 ; When manual override is active, this is the preferred Enabled state when NOT focused on a whitelisted app.
-global g_ManualOverrideEnabled := false
 
 global g_LastIMEState := false
+; Last known global keyboard layout state as reported by WM_INPUTLANGCHANGE.
+global g_LastKnownIsHebrew := IsHebrewHKL(DllCall("GetKeyboardLayout", "UInt", 0, "UPtr"))
 global g_LastActiveHwnd := 0
+; Manual toggle pause: after hotkey, polling is paused until focus changes.
+global g_PollPaused := false
+global g_PollPauseHwnd := 0
 
 global g_NoTooltip := false
 
@@ -786,14 +789,8 @@ IsAutoEnableAllowedForActiveApp() {
     return g_Whitelist.Has(proc)
 }
 
-IsHebrewKeyboard() {
-    ; Use active window thread's keyboard layout
+IsHebrewHKL(hkl) {
     try {
-        hwnd := WinExist("A")
-        if !hwnd
-            return false
-        threadId := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
-        hkl := DllCall("GetKeyboardLayout", "UInt", threadId, "UPtr")
         langId := hkl & 0xFFFF
         return (langId = 0x040D)
     } catch {
@@ -801,58 +798,53 @@ IsHebrewKeyboard() {
     }
 }
 
-WM_INPUTLANGCHANGE(wParam, lParam, msg, hwnd) {
-    ; Fires when keyboard layout changes.
-    ; Desired behavior:
-    ; - If NOT manually overridden: Enabled follows keyboard globally.
-    ; - If manually overridden: Enabled follows keyboard ONLY while focused on a whitelisted app;
-    ;   otherwise remains at the manual override state.
+GetForegroundHKL() {
+    try {
+        hwnd := DllCall("GetForegroundWindow", "Ptr")
+        if !hwnd
+            return 0
+        tid := DllCall("GetWindowThreadProcessId", "Ptr", hwnd, "Ptr", 0, "UInt")
+        return DllCall("GetKeyboardLayout", "UInt", tid, "UPtr")
+    } catch {
+        return 0
+    }
+}
 
-    global g_AutoEnable, g_Enabled, g_ManualOverride, g_ManualOverrideEnabled, g_LastIMEState
+IsHebrewKeyboard() {
+    ; Poll-based source of truth: foreground thread layout.
+    ; (User explicitly requested constant polling.)
+    return IsHebrewHKL(GetForegroundHKL())
+}
+
+; WM_INPUTLANGCHANGE handler kept, but auto-enable is primarily polling-driven.
+WM_INPUTLANGCHANGE(wParam, lParam, msg, hwnd) {
+    ; Fires when keyboard layout changes. lParam is the new HKL.
+    global g_AutoEnable, g_LastIMEState, g_LastKnownIsHebrew
+    global g_PollPaused
+
+    g_LastKnownIsHebrew := IsHebrewHKL(lParam)
+    g_LastIMEState := g_LastKnownIsHebrew
 
     if !g_AutoEnable
         return
 
-    isHebrew := IsHebrewKeyboard()
-    g_LastIMEState := isHebrew
+    ; If polling is paused due to manual toggle, do not auto-sync yet.
+    if g_PollPaused
+        return
 
-    ; IME change resets manual override (keyboard is source of truth again)
-    g_ManualOverride := false
-
-    if (g_Enabled != isHebrew) {
-        g_Enabled := isHebrew
-        UpdateTray()
-    }
 }
 
 ; =============================================================================
 ; AUTO ENABLE
 ; =============================================================================
 
-RecomputeEnabledState() {
-    global g_AutoEnable, g_Enabled, g_ManualOverride, g_ManualOverrideEnabled
-
-    if !g_AutoEnable
-        return
-
-    base := IsHebrewKeyboard()
-
-    ; While focused on an allowed app, always synchronize to keyboard state.
-    ; Outside allowed apps, respect a manual override if one exists.
-    allowed := IsAutoEnableAllowedForActiveApp()
-
-    desired := base
-    if (!allowed && g_ManualOverride)
-        desired := g_ManualOverrideEnabled
-
-    if (g_Enabled != desired) {
-        g_Enabled := desired
-        UpdateTray()
-    }
-}
-
 CheckAutoEnable() {
-    global g_AutoEnable, g_LastIMEState, g_LastActiveHwnd, g_ManualOverride
+    ; Poll-driven state machine.
+    ; Manual toggle pauses polling until focus changes.
+
+    global g_AutoEnable, g_Enabled
+    global g_LastActiveHwnd, g_LastIMEState
+    global g_PollPaused, g_PollPauseHwnd
 
     if !g_AutoEnable
         return
@@ -860,33 +852,50 @@ CheckAutoEnable() {
     hwnd := 0
     try hwnd := WinExist("A")
 
-    ; Focus changes act as a resync point: when entering/leaving an allowed app,
-    ; recompute the effective enabled state.
+    isHeb := IsHebrewKeyboard()
+
+    focusChanged := false
     if (hwnd && hwnd != g_LastActiveHwnd) {
+        focusChanged := true
         g_LastActiveHwnd := hwnd
-        RecomputeEnabledState()
     }
 
-    ; If keyboard layout changed, clear manual override (keyboard becomes source of truth again).
-    isHebrew := IsHebrewKeyboard()
-    if (isHebrew != g_LastIMEState) {
-        g_LastIMEState := isHebrew
-        g_ManualOverride := false
-        RecomputeEnabledState()
-        return
+    ; If polling is paused, do nothing until focus changes away from the paused window.
+    if g_PollPaused {
+        if !focusChanged || (g_PollPauseHwnd && hwnd = g_PollPauseHwnd)
+            return
+        g_PollPaused := false
+        g_PollPauseHwnd := 0
     }
 
-    ; Otherwise, keep state stable (avoid thrashing) unless focus changes.
+    ; Track keyboard layout changes.
+    if (isHeb != g_LastIMEState) {
+        g_LastIMEState := isHeb
+    }
+
+    ; Keyboard-driven desired state.
+    desired := isHeb
+
+    ; English invariant: never allow ON unless user manually toggled (which pauses polling).
+    if (!isHeb)
+        desired := false
+
+    if (g_Enabled != desired) {
+        g_Enabled := desired
+        UpdateTray()
+    }
 }
 
 ToggleMode() {
-    global g_Enabled, g_ManualOverride, g_ManualOverrideEnabled, g_AutoEnable
+    global g_Enabled, g_AutoEnable
+    global g_PollPaused, g_PollPauseHwnd
 
     g_Enabled := !g_Enabled
 
+    ; Manual toggle = pause polling until focus changes.
     if g_AutoEnable {
-        g_ManualOverride := true
-        g_ManualOverrideEnabled := g_Enabled
+        g_PollPaused := true
+        g_PollPauseHwnd := WinExist("A")
     }
 
     UpdateTray()
@@ -1073,184 +1082,6 @@ FixBidiPasteLine(line) {
     out .= trailingSep
 
     return lead . out . trail
-}
-
-FixMixedLatinHebrewTokens(line) {
-    ; Heuristic fixups for mixed-script lines (Latin present) to better match Notepad's visual ordering.
-    ; We preserve exact whitespace and only rewrite within/around tokens.
-
-    if (line = "")
-        return ""
-
-    wsClass := HF_WSCLASS
-    wsChars := SubStr(wsClass, 2, StrLen(wsClass) - 2)
-
-    ; Preserve leading/trailing whitespace
-    if RegExMatch(line, "^([" . wsChars . "]*)(.*?)(([" . wsChars . "])*)$", &m) {
-        lead := m[1], core := m[2], trail := m[3]
-    } else {
-        lead := "", core := line, trail := ""
-    }
-
-    if (core = "")
-        return line
-
-    ; Tokenize into arrays so we can look behind.
-    tokens := []
-    seps := []
-    pos := 1
-    pat := "([^" . wsChars . "]+)([" . wsChars . "]*)"
-    while RegExMatch(core, pat, &mm, pos) {
-        tokens.Push(mm[1])
-        seps.Push(mm[2])
-        pos := mm.Pos[0] + mm.Len[0]
-    }
-
-    if (tokens.Length = 0)
-        return line
-
-    ; Helper: does s consist only of Latin letters?
-    IsLatinRun(s) {
-        return RegExMatch(s, "^[A-Za-z]+$")
-    }
-
-    ; Helper: split prev token into latinPrefix + hebrewTail if it matches that shape.
-    SplitLatinPrefixHebrewTail(s, &latinPrefix, &hebrewTail) {
-        latinPrefix := ""
-        hebrewTail := ""
-        if (s = "")
-            return false
-
-        i := 1
-        ; Latin prefix
-        while (i <= StrLen(s)) {
-            ch := SubStr(s, i, 1)
-            if RegExMatch(ch, "[A-Za-z]") {
-                latinPrefix .= ch
-                i += 1
-                continue
-            }
-            break
-        }
-
-        if (latinPrefix = "")
-            return false
-
-        hebrewTail := SubStr(s, i)
-        if (hebrewTail = "")
-            return false
-
-        ; Ensure remaining is all Hebrew
-        Loop StrLen(hebrewTail) {
-            if !IsHebrewChar(SubStr(hebrewTail, A_Index, 1))
-                return false
-        }
-        return true
-    }
-
-    ; Main pass
-    Loop tokens.Length {
-        i := A_Index
-        tok := tokens[i]
-
-        ; Case A: token begins with one Hebrew char + Latin run (e.g. דD)
-        ; If previous token is LatinPrefix+HebrewTail (e.g. FFFםםםדדגללל), move that Hebrew char into prev after Latin prefix.
-        if (i > 1 && StrLen(tok) >= 2 && IsHebrewChar(SubStr(tok, 1, 1))) {
-            heb1 := SubStr(tok, 1, 1)
-            rest := SubStr(tok, 2)
-            if IsLatinRun(rest) {
-                prev := tokens[i-1]
-                latinPrefix := "", hebTail := ""
-                if SplitLatinPrefixHebrewTail(prev, &latinPrefix, &hebTail) {
-                    ; Move the Hebrew letter into the previous token after its Latin prefix.
-                    tokens[i-1] := latinPrefix . heb1 . hebTail
-
-                    ; If the Latin part is a single letter (e.g. דD) and there's a simple single space
-                    ; between prev and this token, it's usually intended to be attached to the previous
-                    ; mixed token (Notepad visual often shows ...D with no space). Merge it.
-                    if (StrLen(rest) = 1 && seps[i-1] = " ") {
-                        tokens[i-1] .= rest
-                        ; Remove this token; transfer its separator to the previous token.
-                        seps[i-1] := seps[i]
-                        tokens.RemoveAt(i)
-                        seps.RemoveAt(i)
-                        ; Adjust loop since we shortened arrays
-                        continue
-                    }
-
-                    ; Otherwise keep the Latin run as its own token.
-                    tokens[i] := rest
-                    continue
-                }
-
-                ; Otherwise simple swap within token: דD -> Dד
-                tokens[i] := rest . heb1
-                continue
-            }
-        }
-
-        ; Case B: already handled by other pipeline; leave token unchanged.
-    }
-
-    out := ""
-    Loop tokens.Length {
-        out .= tokens[A_Index] . seps[A_Index]
-    }
-
-    if (out = "")
-        return line
-
-    return lead . out . trail
-}
-
-WindowsBidiReorderRTL(s) {
-    ; Use GetCharacterPlacementW to apply Windows' BiDi algorithm and return a visual-order string
-    ; appropriate for an RTL run. Works well for mixed Hebrew+Latin+numbers.
-
-    if (s = "")
-        return ""
-
-    ; Acquire a screen DC for the call.
-    hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
-    if !hdc
-        return s
-
-    ; Prepare input as UTF-16.
-    len := StrLen(s)
-    bufIn := Buffer((len + 1) * 2, 0)
-    StrPut(s, bufIn, "UTF-16")
-
-    ; Output buffers
-    bufOut := Buffer((len + 1) * 2, 0)
-
-    ; GCP_RESULTS struct (we only need lpOutString)
-    ; typedef struct { DWORD lStructSize; LPTSTR lpOutString; UINT *lpOrder; int *lpDx; int *lpCaretPos; LPSTR lpClass; LPWSTR lpGlyphs; int nGlyphs; int nMaxFit; } GCP_RESULTS;
-    gcp := Buffer(A_PtrSize = 8 ? 72 : 40, 0)
-    NumPut("UInt", gcp.Size, gcp, 0)
-    ; lpOutString at offset 8 on x64 (DWORD+padding), 4 on x86
-    offOut := (A_PtrSize = 8) ? 8 : 4
-    NumPut("Ptr", bufOut.Ptr, gcp, offOut)
-
-    ; Flags
-    GCP_REORDER := 0x0002
-    GCP_RTLREADING := 0x0080
-
-    ; Call
-    ok := DllCall("GetCharacterPlacementW"
-        , "Ptr", hdc
-        , "Ptr", bufIn.Ptr
-        , "Int", len
-        , "Int", 0
-        , "Ptr", gcp.Ptr
-        , "UInt", GCP_REORDER | GCP_RTLREADING
-        , "UInt")
-
-    DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
-
-    if (!ok)
-        return s
-
-    return StrGet(bufOut, "UTF-16")
 }
 
 ReverseHebrewRuns(s) {
