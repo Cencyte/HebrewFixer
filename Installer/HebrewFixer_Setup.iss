@@ -73,7 +73,8 @@ Name: "{autodesktop}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFi
 Name: "{userstartup}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; Tasks: startup
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{userappdata}\HebrewFixer"  ; remove persisted settings/logs on uninstall
+; Remove persisted settings/logs on uninstall
+Type: filesandordirs; Name: "{userappdata}\\HebrewFixer"
 
 ; Clean up any generated files
 Type: files; Name: "{app}\*.log"
