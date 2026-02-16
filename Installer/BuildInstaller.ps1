@@ -18,6 +18,8 @@ param(
     [string]$IssFile = "$(Join-Path $PSScriptRoot 'HebrewFixer_Setup.iss')",
     [string]$OutDir = "$(Join-Path $PSScriptRoot '..\\bin')",
     [string]$OutFileName = "HebrewFixer_Setup.exe",
+    [int]$BuildRetries = 3,
+    [int]$BuildRetryDelayMs = 400,
     [int]$ReplaceRetries = 8,
     [int]$ReplaceRetryDelayMs = 300
 )
@@ -74,14 +76,11 @@ if (-not (Test-Path -LiteralPath $OutDirLocal)) {
     New-Item -ItemType Directory -Path $OutDirLocal | Out-Null
 }
 
-$tmpOutDirLocal = Join-Path $OutDirLocal 'tmp_inno_out'
-if (Test-Path -LiteralPath $tmpOutDirLocal) {
-    # best effort cleanup
-    try { Remove-Item -LiteralPath $tmpOutDirLocal -Recurse -Force } catch {}
-}
+$runId = [Guid]::NewGuid().ToString('N')
+$tmpOutDirLocal = Join-Path $OutDirLocal ("tmp_inno_out_" + $runId)
 New-Item -ItemType Directory -Path $tmpOutDirLocal | Out-Null
 
-$tmpBase = "HebrewFixer_Setup_tmp"
+$tmpBase = "HebrewFixer_Setup_tmp_" + $runId
 $tmpInstallerLocal = Join-Path $tmpOutDirLocal ($tmpBase + '.exe')
 $finalInstallerLocal = Join-Path $OutDirLocal $OutFileName
 
@@ -103,18 +102,38 @@ $psi.RedirectStandardError = $true
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
 
-Log "Running: `"$($psi.FileName)`" $($psi.Arguments)"
-$p = [System.Diagnostics.Process]::new()
-$p.StartInfo = $psi
-[void]$p.Start()
-$stdout = $p.StandardOutput.ReadToEnd()
-$stderr = $p.StandardError.ReadToEnd()
-$p.WaitForExit()
-Log "ISCC exit code=$($p.ExitCode)"
-if ($stdout) { Log "ISCC stdout:`n$stdout" }
-if ($stderr) { Log "ISCC stderr:`n$stderr" }
-if ($p.ExitCode -ne 0) {
-    throw "ISCC failed with exit code $($p.ExitCode)"
+$exitCode = $null
+$stdout = $null
+$stderr = $null
+
+for ($attempt = 1; $attempt -le $BuildRetries; $attempt++) {
+    Log "Running (attempt $attempt/$BuildRetries): `"$($psi.FileName)`" $($psi.Arguments)"
+    $p = [System.Diagnostics.Process]::new()
+    $p.StartInfo = $psi
+    [void]$p.Start()
+    $stdout = $p.StandardOutput.ReadToEnd()
+    $stderr = $p.StandardError.ReadToEnd()
+    $p.WaitForExit()
+    $exitCode = $p.ExitCode
+
+    Log "ISCC exit code=$exitCode"
+    if ($stdout) { Log "ISCC stdout:`n$stdout" }
+    if ($stderr) { Log "ISCC stderr:`n$stderr" }
+
+    if ($exitCode -eq 0) {
+        break
+    }
+
+    # Retry resource-update errors which can happen when Windows has a transient lock.
+    if ($stdout -match 'EndUpdateResource failed \(110\)' -or $stderr -match 'EndUpdateResource failed \(110\)') {
+        if ($attempt -lt $BuildRetries) {
+            Log "ISCC resource update error (110). Retrying after ${BuildRetryDelayMs}ms..."
+            Start-Sleep -Milliseconds $BuildRetryDelayMs
+            continue
+        }
+    }
+
+    throw "ISCC failed with exit code $exitCode"
 }
 
 if (-not (Test-Path -LiteralPath $tmpInstallerLocal)) {

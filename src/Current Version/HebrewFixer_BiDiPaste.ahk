@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.3"
+global HF_VERSION := "v1.0.4"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -487,6 +487,7 @@ SetupTray() {
 
     A_TrayMenu.Add()
     A_TrayMenu.Add("Copy diagnostic info", (*) => CopyDiagnosticInfo())
+    A_TrayMenu.Add("Check for updates now", (*) => CheckForUpdatesNow())
     A_TrayMenu.Add("About…", (*) => ShowAboutDialog())
 
     A_TrayMenu.Add()
@@ -2052,23 +2053,40 @@ CopyDiagnosticInfo() {
 ; UPDATE CHECK + BANNER
 ; =============================================================================
 
+CheckForUpdatesNow() {
+    ; Manual, deterministic update check (bypasses per-boot gating)
+    CheckForUpdatesImpl(true)
+}
+
 CheckForUpdatesOnStartup() {
+    ; Startup update check (subject to per-boot gating)
+    CheckForUpdatesImpl(false)
+}
+
+CheckForUpdatesImpl(force := false) {
     global HF_VERSION, g_ConfigIni
     static checkedThisRun := false
 
     bootId := GetBootId()
+    try DebugLog("UpdateCheck: start force=" . (force?"1":"0") . " bootId=" . bootId . " cur=" . HF_VERSION)
 
     ; Harden: only do the network check once per boot.
-    lastCheckedBoot := IniRead(g_ConfigIni, "Updates", "LastCheckedBootId", "")
-    if (bootId != "" && lastCheckedBoot = bootId)
-        return
-    if (bootId = "" && checkedThisRun)
-        return
+    if !force {
+        lastCheckedBoot := IniRead(g_ConfigIni, "Updates", "LastCheckedBootId", "")
+        if (bootId != "" && lastCheckedBoot = bootId) {
+            try DebugLog("UpdateCheck: skip (already checked this boot)")
+            return
+        }
+        if (bootId = "" && checkedThisRun) {
+            try DebugLog("UpdateCheck: skip (checkedThisRun)")
+            return
+        }
+    }
 
     checkedThisRun := true
 
     ; Record that we checked on this boot (even if no update is found).
-    if (bootId != "") {
+    if (!force && bootId != "") {
         IniWrite(bootId, g_ConfigIni, "Updates", "LastCheckedBootId")
         NormalizeIniEncoding()
     }
@@ -2077,8 +2095,9 @@ CheckForUpdatesOnStartup() {
 
     try {
         http := ComObject("WinHttp.WinHttpRequest.5.1")
-        http.Open("GET", url, false)  ; synchronous: more reliable than async+timeout
+        http.Open("GET", url, false)
         http.SetRequestHeader("User-Agent", "HebrewFixer")
+        http.SetRequestHeader("Accept", "application/vnd.github+json")
         http.Send()
 
         if (http.Status != 200) {
@@ -2087,26 +2106,49 @@ CheckForUpdatesOnStartup() {
         }
 
         body := http.ResponseText
-        if !RegExMatch(body, '"tag_name"\\s*:\\s*"([^"]+)"', &m)
+        if !RegExMatch(body, '"tag_name"\\s*:\\s*"([^"]+)"', &m) {
+            try DebugLog("UpdateCheck: tag_name not found in response")
             return
-
-        latest := m[1]
-        if (latest = "" || latest = HF_VERSION)
-            return
-
-        ; Show the banner only once per boot.
-        lastShownBoot := IniRead(g_ConfigIni, "Updates", "LastBannerBootId", "")
-        if (bootId != "" && lastShownBoot = bootId)
-            return
-
-        if (bootId != "") {
-            IniWrite(bootId, g_ConfigIni, "Updates", "LastBannerBootId")
-            NormalizeIniEncoding()
         }
 
-        ShowUpdateBanner(latest)
+        latest := m[1]
+        try DebugLog("UpdateCheck: latest=" . latest)
+
+        if (latest = "")
+            return
+        if (latest = HF_VERSION) {
+            try DebugLog("UpdateCheck: already latest")
+            return
+        }
+
+        ; Show the banner only once per boot.
+        if !force {
+            lastShownBoot := IniRead(g_ConfigIni, "Updates", "LastBannerBootId", "")
+            if (bootId != "" && lastShownBoot = bootId) {
+                try DebugLog("UpdateCheck: skip banner (already shown this boot)")
+                EnsureUpdateMenuItem(latest)
+                return
+            }
+
+            if (bootId != "") {
+                IniWrite(bootId, g_ConfigIni, "Updates", "LastBannerBootId")
+                NormalizeIniEncoding()
+            }
+        }
+
+        ; Ensure tray menu item even if banner fails.
         EnsureUpdateMenuItem(latest)
-    } catch {
+
+        try {
+            ShowUpdateBanner(latest)
+        } catch as e {
+            try DebugLog("UpdateCheck: ShowUpdateBanner failed: " . e.Message)
+            ; Fallback notification
+            try TrayTip("Update available: " . latest, "HebrewFixer")
+        }
+
+    } catch as e {
+        try DebugLog("UpdateCheck: exception: " . e.Message)
         return
     }
 }
