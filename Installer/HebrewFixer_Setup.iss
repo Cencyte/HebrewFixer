@@ -13,8 +13,8 @@
 
 [Setup]
 AppName=HebrewFixer
-AppVersion=1.0.7
-AppVerName=HebrewFixer 1.0.7
+AppVersion=1.0.8
+AppVerName=HebrewFixer 1.0.8
 AppPublisher=Cencyte
 AppPublisherURL=https://github.com/Cencyte/HebrewFixer
 AppSupportURL=https://github.com/Cencyte/HebrewFixer/issues
