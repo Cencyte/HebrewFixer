@@ -281,7 +281,7 @@ HumanHotkeyToAhk(human) {
     return mods . key
 }
 
-CaptureHotkeyHuman(updateCtrl := "") {
+; CaptureHotkeyHuman removed (replaced by latched recorder)
     ; Records a shortcut as:
     ; - user may tap modifiers in any order (Ctrl/Alt/Shift/Win)
     ; - recording ends when a non-modifier key is pressed
@@ -330,12 +330,18 @@ CaptureHotkeyHuman(updateCtrl := "") {
 
         if modMap.Has(k) {
             m := modMap[k]
-            ; Toggle modifier (tap again to remove)
-            if selected.Has(m)
-                selected.Delete(m)
-            else
-                selected[m] := true
+
+            ; Stack-only: modifiers only ever add (no toggling off)
+            if !selected.Has(m) {
+                ; Enforce max 3 modifiers
+                if (selected.Count < 3)
+                    selected[m] := true
+            }
+
             UpdatePreview()
+
+            ; Debounce: wait for key-up so holding a modifier doesn't spam
+            try KeyWait(k)
             continue
         }
 
@@ -676,15 +682,14 @@ ShowSettingsGui() {
         row ? lv.Delete(row) : 0
     ))
 
-    btnRecord.OnEvent("Click", (*) => (
-        hk := CaptureHotkeyHuman(hotkeyEdit),
-        (hk != "") ? (hotkeyEdit.Value := hk) : 0
-    ))
+    btnRecord.OnEvent("Click", (*) => ToggleRecordMode(hotkeyEdit, btnRecord))
 
     btnSave.OnEvent("Click", (*) => (
         SettingsGuiSave(settingsGui, hotkeyEdit, cbAuto, cbAll, cbUpd, lv)
     ))
-    btnCancel.OnEvent("Click", (*) => settingsGui.Destroy())
+    btnCancel.OnEvent("Click", (*) => (StopRecordMode(true), settingsGui.Destroy()))
+
+    settingsGui.OnEvent("Close", (*) => StopRecordMode(true))
 
     settingsGui.Show()
 }
@@ -991,6 +996,158 @@ HandleDelete() {
 
 ShouldBypassShortcuts() {
     return GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P")
+}
+
+NormalizeHotkeyKeyName(k) {
+    ; Normalize some AHK key names for nicer display
+    if (k = "LControl")
+        return "LCtrl"
+    if (k = "RControl")
+        return "RCtrl"
+    if (k = "LShift")
+        return "LShift"
+    if (k = "RShift")
+        return "RShift"
+    if (k = "LAlt")
+        return "LAlt"
+    if (k = "RAlt")
+        return "RAlt"
+    if (k = "LWin")
+        return "LWin"
+    if (k = "RWin")
+        return "RWin"
+
+    ; Single character keys: uppercase for display
+    if (StrLen(k) = 1)
+        return StrUpper(k)
+
+    return k
+}
+
+; =============================================================================
+; SETTINGS HOTKEY RECORDER (latched mode)
+; =============================================================================
+
+global g_RecordMode := false
+global g_RecordIH := ""
+global g_RecordSelected := Map()  ; modifier -> true
+
+global g_RecordHotkeyEdit := ""
+global g_RecordButton := ""
+
+global g_RecordSeenDown := Map()  ; debounce repeated keydown events
+
+UpdateRecordPreview(finalKey := "") {
+    global g_RecordHotkeyEdit, g_RecordSelected
+    if (g_RecordHotkeyEdit = "")
+        return
+
+    order := ["Ctrl", "Alt", "Shift", "Win"]
+    out := ""
+    for _, m in order {
+        if g_RecordSelected.Has(m)
+            out .= m . "+"
+    }
+    if (finalKey != "")
+        out .= finalKey
+
+    g_RecordHotkeyEdit.Value := out
+}
+
+Record_OnKeyDown(ih, vk, sc) {
+    global g_RecordMode, g_RecordSelected, g_RecordSeenDown
+
+    if !g_RecordMode
+        return
+
+    k := ih.EndKey
+    if (k = "")
+        return
+
+    ; debounce: ignore repeats while held
+    if g_RecordSeenDown.Has(k)
+        return
+    g_RecordSeenDown[k] := true
+
+    if (k = "Escape" || k = "Esc") {
+        StopRecordMode(true)
+        return
+    }
+
+    modMap := Map(
+        "LControl","Ctrl", "RControl","Ctrl", "Control","Ctrl", "Ctrl","Ctrl",
+        "LShift","Shift", "RShift","Shift", "Shift","Shift",
+        "LAlt","Alt", "RAlt","Alt", "Alt","Alt",
+        "LWin","Win", "RWin","Win")
+
+    if modMap.Has(k) {
+        m := modMap[k]
+        if !g_RecordSelected.Has(m) && (g_RecordSelected.Count < 3)
+            g_RecordSelected[m] := true
+        UpdateRecordPreview()
+        return
+    }
+
+    ; Non-modifier terminates recording
+    key := NormalizeHotkeyKeyName(k)
+    UpdateRecordPreview(key)
+    StopRecordMode(false)
+}
+
+Record_OnKeyUp(ih, vk, sc) {
+    global g_RecordSeenDown
+    k := ih.EndKey
+    if (k != "" && g_RecordSeenDown.Has(k))
+        g_RecordSeenDown.Delete(k)
+}
+
+StartRecordMode(hotkeyEdit, recordBtn) {
+    global g_RecordMode, g_RecordIH, g_RecordSelected, g_RecordHotkeyEdit, g_RecordButton, g_RecordSeenDown
+
+    g_RecordMode := true
+    g_RecordSelected := Map()
+    g_RecordSeenDown := Map()
+
+    g_RecordHotkeyEdit := hotkeyEdit
+    g_RecordButton := recordBtn
+
+    g_RecordHotkeyEdit.Value := ""
+    g_RecordButton.Text := "Recording…"
+
+    ih := InputHook("V")
+    ih.KeyOpt("{All}", "E")
+    ih.OnKeyDown := Record_OnKeyDown
+    ih.OnKeyUp := Record_OnKeyUp
+    ih.Start()
+    g_RecordIH := ih
+}
+
+StopRecordMode(cancelled := false) {
+    global g_RecordMode, g_RecordIH, g_RecordButton, g_RecordHotkeyEdit
+
+    if !g_RecordMode
+        return
+
+    try g_RecordIH.Stop()
+
+    g_RecordMode := false
+
+    if (g_RecordButton != "")
+        g_RecordButton.Text := "Record…"
+
+    if cancelled && (g_RecordHotkeyEdit != "")
+        g_RecordHotkeyEdit.Value := ""
+
+    g_RecordIH := ""
+}
+
+ToggleRecordMode(hotkeyEdit, recordBtn) {
+    global g_RecordMode
+    if g_RecordMode {
+        StopRecordMode(true)
+    } else {
+        StartRecordMode(hotkeyEdit, recordBtn)
+    }
 }
 
 global g_LastTransformStage := ""
