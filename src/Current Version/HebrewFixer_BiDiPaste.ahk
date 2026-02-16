@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.2"
+global HF_VERSION := "v1.0.3"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -329,6 +329,14 @@ LoadSettings() {
     g_AutoEnableAllApps := IniRead(g_ConfigIni, "General", "AutoEnableAllApps", "0") = "1"
 
     hkRaw := IniRead(g_ConfigIni, "General", "ToggleHotkey", HF_DEFAULT_TOGGLE_HOTKEY_AHK)
+
+    ; Migration: fix an old bad default that sometimes appeared as Ctrl+Shift+Alt+/.
+    ; Accept a few plausible encodings of that bad value.
+    hkRawNorm := StrUpper(StrReplace(StrReplace(Trim(hkRaw), " ", ""), "`t", ""))
+    ; bad values we want to reset back to default
+    if (hkRawNorm = "CTRL+SHIFT+ALT+/" || hkRawNorm = "CONTROL+SHIFT+ALT+/" || hkRawNorm = "^+!/" || hkRawNorm = "^+!/")
+        hkRaw := HF_DEFAULT_TOGGLE_HOTKEY_AHK
+
     ; Migration: if the INI contains a human-style hotkey (Ctrl+Alt+H), convert it to AHK syntax.
     try {
         g_ToggleHotkey := LooksLikeHumanHotkey(hkRaw) ? HumanHotkeyToAhk(hkRaw) : hkRaw
@@ -822,10 +830,23 @@ CheckAutoEnable() {
     ; Stable keyboard-layout polling (2 consecutive polls required).
     ; Poll foreground layout (stable-for-2-polls)
     lang := GetForegroundLangId()
+    ; Require 2 consecutive polls before accepting the initial stable value too.
     if (g_LastStableLangId = 0) {
-        g_LastStableLangId := lang
-        g_CandidateLangId := 0
-        g_CandidateHits := 0
+        if (g_CandidateLangId = lang) {
+            g_CandidateHits += 1
+        } else {
+            g_CandidateLangId := lang
+            g_CandidateHits := 1
+        }
+
+        if (g_CandidateHits >= 2) {
+            g_LastStableLangId := lang
+            g_CandidateLangId := 0
+            g_CandidateHits := 0
+            try DebugLog("LangStable(init): " . Format("0x{:04X}", lang) . " proc=" . GetActiveProcessName())
+        } else {
+            return
+        }
     } else if (lang != g_LastStableLangId) {
         if (g_CandidateLangId = lang) {
             g_CandidateHits += 1
@@ -2056,13 +2077,14 @@ CheckForUpdatesOnStartup() {
 
     try {
         http := ComObject("WinHttp.WinHttpRequest.5.1")
-        http.Open("GET", url, true)
+        http.Open("GET", url, false)  ; synchronous: more reliable than async+timeout
         http.SetRequestHeader("User-Agent", "HebrewFixer")
         http.Send()
-        http.WaitForResponse(2)
 
-        if (http.Status != 200)
+        if (http.Status != 200) {
+            try DebugLog("UpdateCheck: HTTP status " . http.Status)
             return
+        }
 
         body := http.ResponseText
         if !RegExMatch(body, '"tag_name"\\s*:\\s*"([^"]+)"', &m)
