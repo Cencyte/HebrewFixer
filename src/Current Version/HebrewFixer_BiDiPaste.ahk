@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.10"
+global HF_VERSION := "v1.0.11"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -1128,6 +1128,39 @@ DebugLog(msg) {
     }
 }
 
+HttpGetResponseText(http) {
+    ; Return response body as UTF-8 text, even when WinHTTP ResponseText is unreliable.
+    ; Uses ADODB.Stream to decode raw bytes.
+    try {
+        bytes := http.ResponseBody  ; SAFEARRAY of bytes
+        stm := ComObject("ADODB.Stream")
+        stm.Type := 1  ; adTypeBinary
+        stm.Open()
+        stm.Write(bytes)
+        stm.Position := 0
+        stm.Type := 2  ; adTypeText
+        stm.Charset := "utf-8"
+        txt := stm.ReadText()
+        stm.Close()
+        return txt
+    } catch {
+        try return http.ResponseText
+        catch return ""
+    }
+}
+
+SaveUpdateResponseDump(body) {
+    global g_ConfigDir
+    try {
+        path := g_ConfigDir . "\\hf_update_last_response.json"
+        FileDelete(path)
+        FileAppend(body, path, "UTF-8-RAW")
+        DebugLog("UpdateCheck: wrote full response to: " . path)
+    } catch as e {
+        try DebugLog("UpdateCheck: failed to write response dump: " . e.Message)
+    }
+}
+
 ; =============================================================================
 ; CLIPBOARD TRANSFORM (multi-line)
 ; =============================================================================
@@ -2213,18 +2246,17 @@ CheckForUpdatesImpl(force := false) {
             return
         }
 
-        ; WinHTTP ResponseText can be unreliable depending on codepage; decode ResponseBody as UTF-8.
-        try {
-            body := StrGet(http.ResponseBody, "UTF-8")
-        } catch {
-            body := http.ResponseText
-        }
+        ; Decode response reliably and log full response for debugging.
+        body := HttpGetResponseText(http)
+        try DebugLog("UpdateCheck: response chars=" . StrLen(body))
 
         if !RegExMatch(body, '"tag_name"\\s*:\\s*"([^"]+)"', &m) {
-            ; Log a snippet to aid debugging (avoid spamming full JSON)
-            try DebugLog("UpdateCheck: tag_name not found. status=" . http.Status . " sample=" . SubStr(body, 1, 200))
+            try DebugLog("UpdateCheck: tag_name not found. status=" . http.Status . " saving full response...")
+            SaveUpdateResponseDump(body)
             return
         }
+
+        try DebugLog("UpdateCheck: tag_name captured='" . m[1] . "'")
 
         latest := m[1]
         try DebugLog("UpdateCheck: latest=" . latest)
