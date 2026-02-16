@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.4"
+global HF_VERSION := "v1.0.5"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -328,14 +328,27 @@ LoadSettings() {
     g_AutoEnable := IniRead(g_ConfigIni, "General", "AutoEnable", "1") = "1"
     g_AutoEnableAllApps := IniRead(g_ConfigIni, "General", "AutoEnableAllApps", "0") = "1"
 
-    hkRaw := IniRead(g_ConfigIni, "General", "ToggleHotkey", HF_DEFAULT_TOGGLE_HOTKEY_AHK)
+    hkRawOriginal := IniRead(g_ConfigIni, "General", "ToggleHotkey", HF_DEFAULT_TOGGLE_HOTKEY_AHK)
+    hkRaw := hkRawOriginal
 
-    ; Migration: fix an old bad default that sometimes appeared as Ctrl+Shift+Alt+/.
-    ; Accept a few plausible encodings of that bad value.
-    hkRawNorm := StrUpper(StrReplace(StrReplace(Trim(hkRaw), " ", ""), "`t", ""))
-    ; bad values we want to reset back to default
-    if (hkRawNorm = "CTRL+SHIFT+ALT+/" || hkRawNorm = "CONTROL+SHIFT+ALT+/" || hkRawNorm = "^+!/" || hkRawNorm = "^+!/")
+    ; Migration: fix a bad legacy default that sometimes appeared as Ctrl+Shift+Alt+/.
+    ; This can persist across reinstalls because settings.ini lives in %APPDATA%.
+    hkNorm := StrUpper(StrReplace(StrReplace(StrReplace(Trim(hkRaw), " ", ""), "`t", ""), "`r", ""))
+
+    ; Human form
+    if (hkNorm = "CTRL+SHIFT+ALT+/" || hkNorm = "CONTROL+SHIFT+ALT+/") {
         hkRaw := HF_DEFAULT_TOGGLE_HOTKEY_AHK
+    } else {
+        ; AHK syntax can have modifiers in any order, e.g. ^+!/  ^!+/  +^!/  !^+/
+        if RegExMatch(hkNorm, "^[\^!\+#]*\/$") {
+            hasCtrl := InStr(hkNorm, "^")
+            hasAlt := InStr(hkNorm, "!")
+            hasShift := InStr(hkNorm, "+")
+            hasWin := InStr(hkNorm, "#")
+            if (hasCtrl && hasAlt && hasShift && !hasWin)
+                hkRaw := HF_DEFAULT_TOGGLE_HOTKEY_AHK
+        }
+    }
 
     ; Migration: if the INI contains a human-style hotkey (Ctrl+Alt+H), convert it to AHK syntax.
     try {
@@ -351,8 +364,8 @@ LoadSettings() {
     if firstRun {
         SaveSettings()
     } else {
-        ; If we migrated the hotkey, persist it in AHK syntax.
-        if (g_ToggleHotkey != hkRaw)
+        ; If we migrated / normalized anything, persist it.
+        if (g_ToggleHotkey != hkRawOriginal)
             SaveSettings()
     }
 }
