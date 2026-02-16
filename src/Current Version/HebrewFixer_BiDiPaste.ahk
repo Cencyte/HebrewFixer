@@ -558,10 +558,9 @@ ShowSettingsGui() {
     settingsGui.SetFont("s9")
 
     settingsGui.AddText("xm ym", "Toggle hotkey:")
-    ; Accept either AHK syntax (^!h) or human format (Ctrl+Alt+H)
-    hotkeyEdit := settingsGui.AddEdit("x+10 yp-2 w200", HotkeyHumanReadable(g_ToggleHotkey))
-    btnRecord := settingsGui.AddButton("x+6 yp-1 w90", "Record…")
-    settingsGui.AddText("xm y+6 c606060", "Tip: click Record…, then press your shortcut (Esc cancels).")
+    ; Native Windows hotkey control (robust). Win key is ignored for now.
+    hotkeyCtrl := settingsGui.AddHotkey("x+10 yp-2 w200", g_ToggleHotkey)
+    settingsGui.AddText("xm y+6 c606060", "Tip: click the field and press Ctrl/Alt/Shift + key (Win disabled).")
 
     cbAuto := settingsGui.AddCheckbox("xm y+14", "Auto-enable on Hebrew keyboard")
     cbAuto.Value := g_AutoEnable
@@ -593,10 +592,8 @@ ShowSettingsGui() {
         row ? lv.Delete(row) : 0
     ))
 
-    btnRecord.OnEvent("Click", (*) => ToggleRecordMode(hotkeyEdit, btnRecord))
-
     btnSave.OnEvent("Click", (*) => (
-        SettingsGuiSave(settingsGui, hotkeyEdit, cbAuto, cbAll, cbUpd, lv)
+        SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv)
     ))
     btnCancel.OnEvent("Click", (*) => (StopRecordMode(true), settingsGui.Destroy()))
 
@@ -605,16 +602,13 @@ ShowSettingsGui() {
     settingsGui.Show()
 }
 
-SettingsGuiSave(settingsGui, hotkeyEdit, cbAuto, cbAll, cbUpd, lv) {
+SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
     global g_AutoEnable, g_AutoEnableAllApps, g_CheckUpdatesOnStartup
     global g_Whitelist
 
-    newHotkeyHuman := Trim(hotkeyEdit.Value)
-    if (newHotkeyHuman = "")
-        newHotkeyHuman := HF_DEFAULT_TOGGLE_HOTKEY_HUMAN
-
-    ; Convert human-friendly (Ctrl+Alt+H) to AHK syntax (^!h).
-    newHotkey := HumanHotkeyToAhk(newHotkeyHuman)
+    newHotkey := Trim(hotkeyCtrl.Value)
+    if (newHotkey = "")
+        newHotkey := HF_DEFAULT_TOGGLE_HOTKEY_AHK
 
     g_AutoEnable := cbAuto.Value = 1
     g_AutoEnableAllApps := cbAll.Value = 1
@@ -633,11 +627,15 @@ SettingsGuiSave(settingsGui, hotkeyEdit, cbAuto, cbAll, cbUpd, lv) {
         newWL["Designer.exe"] := true
     }
     g_Whitelist := newWL
+    if InStr(newHotkey, "#") {
+        MsgBox("Win key is disabled for now. Please use Ctrl/Alt/Shift only.", "HebrewFixer", "Iconx")
+        return
+    }
 
     try {
         RegisterToggleHotkey(newHotkey)
     } catch as e {
-        MsgBox("Invalid hotkey: " . newHotkeyHuman . "`n`n" . e.Message, "HebrewFixer", "Iconx")
+        MsgBox("Invalid hotkey: " . newHotkey . "`n`n" . e.Message, "HebrewFixer", "Iconx")
         return
     }
 
@@ -936,131 +934,6 @@ NormalizeHotkeyKeyName(k) {
 }
 
 ; =============================================================================
-; SETTINGS HOTKEY RECORDER (latched mode)
-; =============================================================================
-
-global g_RecordMode := false
-global g_RecordIH := ""
-global g_RecordSelected := Map()  ; modifier -> true
-
-global g_RecordHotkeyEdit := ""
-global g_RecordButton := ""
-
-global g_RecordSeenDown := Map()  ; debounce repeated keydown events
-
-UpdateRecordPreview(finalKey := "") {
-    global g_RecordHotkeyEdit, g_RecordSelected
-    if (g_RecordHotkeyEdit = "")
-        return
-
-    order := ["Ctrl", "Alt", "Shift", "Win"]
-    out := ""
-    for _, m in order {
-        if g_RecordSelected.Has(m)
-            out .= m . "+"
-    }
-    if (finalKey != "")
-        out .= finalKey
-
-    g_RecordHotkeyEdit.Value := out
-}
-
-Record_OnKeyDown(ih, vk, sc) {
-    global g_RecordMode, g_RecordSelected, g_RecordSeenDown
-
-    if !g_RecordMode
-        return
-
-    k := ih.EndKey
-    if (k = "")
-        return
-
-    ; debounce: ignore repeats while held
-    if g_RecordSeenDown.Has(k)
-        return
-    g_RecordSeenDown[k] := true
-
-    if (k = "Escape" || k = "Esc") {
-        StopRecordMode(true)
-        return
-    }
-
-    modMap := Map(
-        "LControl","Ctrl", "RControl","Ctrl", "Control","Ctrl", "Ctrl","Ctrl",
-        "LShift","Shift", "RShift","Shift", "Shift","Shift",
-        "LAlt","Alt", "RAlt","Alt", "Alt","Alt",
-        "LWin","Win", "RWin","Win")
-
-    if modMap.Has(k) {
-        m := modMap[k]
-        if !g_RecordSelected.Has(m) && (g_RecordSelected.Count < 3)
-            g_RecordSelected[m] := true
-        UpdateRecordPreview()
-        return
-    }
-
-    ; Non-modifier terminates recording
-    key := NormalizeHotkeyKeyName(k)
-    UpdateRecordPreview(key)
-    StopRecordMode(false)
-}
-
-Record_OnKeyUp(ih, vk, sc) {
-    global g_RecordSeenDown
-    k := ih.EndKey
-    if (k != "" && g_RecordSeenDown.Has(k))
-        g_RecordSeenDown.Delete(k)
-}
-
-StartRecordMode(hotkeyEdit, recordBtn) {
-    global g_RecordMode, g_RecordIH, g_RecordSelected, g_RecordHotkeyEdit, g_RecordButton, g_RecordSeenDown
-
-    g_RecordMode := true
-    g_RecordSelected := Map()
-    g_RecordSeenDown := Map()
-
-    g_RecordHotkeyEdit := hotkeyEdit
-    g_RecordButton := recordBtn
-
-    g_RecordHotkeyEdit.Value := ""
-    g_RecordButton.Text := "Recording…"
-
-    ih := InputHook("V")
-    ih.KeyOpt("{All}", "E")
-    ih.OnKeyDown := Record_OnKeyDown
-    ih.OnKeyUp := Record_OnKeyUp
-    ih.Start()
-    g_RecordIH := ih
-}
-
-StopRecordMode(cancelled := false) {
-    global g_RecordMode, g_RecordIH, g_RecordButton, g_RecordHotkeyEdit
-
-    if !g_RecordMode
-        return
-
-    try g_RecordIH.Stop()
-
-    g_RecordMode := false
-
-    if (g_RecordButton != "")
-        g_RecordButton.Text := "Record…"
-
-    if cancelled && (g_RecordHotkeyEdit != "")
-        g_RecordHotkeyEdit.Value := ""
-
-    g_RecordIH := ""
-}
-
-ToggleRecordMode(hotkeyEdit, recordBtn) {
-    global g_RecordMode
-    if g_RecordMode {
-        StopRecordMode(true)
-    } else {
-        StartRecordMode(hotkeyEdit, recordBtn)
-    }
-}
-
 global g_LastTransformStage := ""
 
 SetTransformStage(s) {
