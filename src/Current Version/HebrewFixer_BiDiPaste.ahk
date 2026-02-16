@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.5"
+global HF_VERSION := "v1.0.6"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -339,13 +339,16 @@ LoadSettings() {
     if (hkNorm = "CTRL+SHIFT+ALT+/" || hkNorm = "CONTROL+SHIFT+ALT+/") {
         hkRaw := HF_DEFAULT_TOGGLE_HOTKEY_AHK
     } else {
-        ; AHK syntax can have modifiers in any order, e.g. ^+!/  ^!+/  +^!/  !^+/
-        if RegExMatch(hkNorm, "^[\^!\+#]*\/$") {
+        ; AHK syntax can have modifiers in any order.
+        ; We consider these legacy/bad defaults and migrate them back to Ctrl+Alt+H:
+        ;   - Ctrl+Alt+Shift+/ (may appear as ^+!/ or ^!? because '?' is Shift+/ on US)
+        ;   - Any variant where key is '/' or '?' and modifiers include Ctrl+Alt (+Shift implicit for '?') and no Win.
+        if RegExMatch(hkNorm, "^[\^!\+#]*[\/?]$") {
             hasCtrl := InStr(hkNorm, "^")
             hasAlt := InStr(hkNorm, "!")
-            hasShift := InStr(hkNorm, "+")
             hasWin := InStr(hkNorm, "#")
-            if (hasCtrl && hasAlt && hasShift && !hasWin)
+            keyChar := SubStr(hkNorm, StrLen(hkNorm), 1)
+            if (hasCtrl && hasAlt && !hasWin && (keyChar = "/" || keyChar = "?"))
                 hkRaw := HF_DEFAULT_TOGGLE_HOTKEY_AHK
         }
     }

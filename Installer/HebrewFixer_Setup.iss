@@ -13,8 +13,8 @@
 
 [Setup]
 AppName=HebrewFixer
-AppVersion=1.0.5
-AppVerName=HebrewFixer 1.0.5
+AppVersion=1.0.6
+AppVerName=HebrewFixer 1.0.6
 AppPublisher=Cencyte
 AppPublisherURL=https://github.com/Cencyte/HebrewFixer
 AppSupportURL=https://github.com/Cencyte/HebrewFixer/issues
@@ -73,6 +73,8 @@ Name: "{autodesktop}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; IconFi
 Name: "{userstartup}\HebrewFixer"; Filename: "{app}\HebrewFixer1998.exe"; Tasks: startup
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{userappdata}\HebrewFixer"  ; remove persisted settings/logs on uninstall
+
 ; Clean up any generated files
 Type: files; Name: "{app}\*.log"
 Type: filesandordirs; Name: "{app}\InstallerTools"
