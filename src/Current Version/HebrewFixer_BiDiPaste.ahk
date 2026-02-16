@@ -24,7 +24,7 @@ global g_Enabled := false
 global g_Buffer := ""  ; (legacy)
 
 ; Debug feature: Undo buffer (Ctrl+Z sends the correct number of undos)
-global g_UndoBufferEnabled := false
+global g_UndoBufferEnabled := true  ; now integral (no toggle)
 ; Stack of undo "cost" per tracked keystroke:
 ; - 1 for normal keystrokes
 ; - 2 for RTL-injected Hebrew keystrokes (char + caret move)
@@ -47,6 +47,11 @@ global g_LastActiveHwnd := 0
 ; Manual toggle pause: after hotkey, polling is paused until focus changes.
 global g_PollPaused := false
 global g_PollPauseHwnd := 0
+
+; Stable layout polling state (Option B: accept change after 2 consecutive polls)
+global g_LastStableLangId := 0
+global g_CandidateLangId := 0
+global g_CandidateHits := 0
 
 global g_NoTooltip := false
 
@@ -529,12 +534,10 @@ SetupTray() {
     A_TrayMenu.Add()
 
     A_TrayMenu.Add("Auto-enable on Hebrew keyboard", (*) => ToggleAutoEnable())
-    A_TrayMenu.Add("Auto-enable: All apps", (*) => ToggleAllApps())
     A_TrayMenu.Add("Settings…", (*) => ShowSettingsGui())
 
     A_TrayMenu.Add()
     A_TrayMenu.Add("Copy diagnostic info", (*) => CopyDiagnosticInfo())
-    A_TrayMenu.Add("Debug: Undo buffer (Ctrl+Z clears run)", (*) => ToggleUndoBuffer())
 
     A_TrayMenu.Add()
     A_TrayMenu.Add("Exit", (*) => ExitApp())
@@ -550,15 +553,7 @@ UpdateTray() {
     else
         A_TrayMenu.Uncheck("Auto-enable on Hebrew keyboard")
 
-    if g_AutoEnableAllApps
-        A_TrayMenu.Check("Auto-enable: All apps")
-    else
-        A_TrayMenu.Uncheck("Auto-enable: All apps")
-
-    if g_UndoBufferEnabled
-        A_TrayMenu.Check("Debug: Undo buffer (Ctrl+Z clears run)")
-    else
-        A_TrayMenu.Uncheck("Debug: Undo buffer (Ctrl+Z clears run)")
+    ; (Tray menu no longer includes "Auto-enable: All apps"; setting remains in Settings GUI)
 
     A_IconTip := "HebrewFixer: " . (g_Enabled ? "ON" : "OFF")
     if g_AutoEnable
@@ -595,14 +590,6 @@ ToggleAllApps() {
     g_AutoEnableAllApps := !g_AutoEnableAllApps
     SaveSettings()
     UpdateTray()
-}
-
-ToggleUndoBuffer() {
-    global g_UndoBufferEnabled
-    g_UndoBufferEnabled := !g_UndoBufferEnabled
-    ClearUndoBuffer()
-    UpdateTray()
-    ShowTip("Undo buffer: " . (g_UndoBufferEnabled ? "ON" : "OFF"), A_ScreenWidth // 2 - 120, 50, 1500)
 }
 
 ClearUndoBuffer() {
@@ -798,6 +785,8 @@ IsHebrewHKL(hkl) {
     }
 }
 
+; Foreground HKL polling was causing Notepad-specific layout discrepancies.
+; We keep keyboard polling but base it on the script thread HKL instead.
 GetForegroundHKL() {
     try {
         hwnd := DllCall("GetForegroundWindow", "Ptr")
@@ -810,28 +799,28 @@ GetForegroundHKL() {
     }
 }
 
+GetForegroundLangId() {
+    hkl := GetForegroundHKL()
+    return hkl & 0xFFFF
+}
+
 IsHebrewKeyboard() {
     ; Poll-based source of truth: foreground thread layout.
-    ; (User explicitly requested constant polling.)
-    return IsHebrewHKL(GetForegroundHKL())
+    return (GetForegroundLangId() = 0x040D)
 }
 
 ; WM_INPUTLANGCHANGE handler kept, but auto-enable is primarily polling-driven.
 WM_INPUTLANGCHANGE(wParam, lParam, msg, hwnd) {
     ; Fires when keyboard layout changes. lParam is the new HKL.
-    global g_AutoEnable, g_LastIMEState, g_LastKnownIsHebrew
-    global g_PollPaused
+    ; Force this script thread to adopt the layout so GetKeyboardLayout(0) polling is correct.
+    global g_LastIMEState, g_LastKnownIsHebrew
+
+    try DllCall("ActivateKeyboardLayout", "Ptr", lParam, "UInt", 0)
 
     g_LastKnownIsHebrew := IsHebrewHKL(lParam)
     g_LastIMEState := g_LastKnownIsHebrew
 
-    if !g_AutoEnable
-        return
-
-    ; If polling is paused due to manual toggle, do not auto-sync yet.
-    if g_PollPaused
-        return
-
+    ; No state flip here; polling loop owns enable/disable.
 }
 
 ; =============================================================================
@@ -841,50 +830,66 @@ WM_INPUTLANGCHANGE(wParam, lParam, msg, hwnd) {
 CheckAutoEnable() {
     ; Poll-driven state machine.
     ; Manual toggle pauses polling until focus changes.
-
     global g_AutoEnable, g_Enabled
-    global g_LastActiveHwnd, g_LastIMEState
     global g_PollPaused, g_PollPauseHwnd
+    global g_LastActiveHwnd
+    global g_LastStableLangId, g_CandidateLangId, g_CandidateHits
 
     if !g_AutoEnable
         return
 
-    hwnd := 0
-    try hwnd := WinExist("A")
+    hwnd := WinExist("A")
 
-    isHeb := IsHebrewKeyboard()
-
-    focusChanged := false
-    if (hwnd && hwnd != g_LastActiveHwnd) {
-        focusChanged := true
-        g_LastActiveHwnd := hwnd
-    }
-
-    ; If polling is paused, do nothing until focus changes away from the paused window.
+    ; If paused, only resume when focus changes.
     if g_PollPaused {
-        if !focusChanged || (g_PollPauseHwnd && hwnd = g_PollPauseHwnd)
+        if (hwnd && hwnd != g_PollPauseHwnd) {
+            g_PollPaused := false
+            g_PollPauseHwnd := 0
+        } else {
             return
-        g_PollPaused := false
-        g_PollPauseHwnd := 0
+        }
     }
 
-    ; Track keyboard layout changes.
-    if (isHeb != g_LastIMEState) {
-        g_LastIMEState := isHeb
+    ; Stable keyboard-layout polling (2 consecutive polls required).
+    ; Poll foreground layout (stable-for-2-polls)
+    lang := GetForegroundLangId()
+    if (g_LastStableLangId = 0) {
+        g_LastStableLangId := lang
+        g_CandidateLangId := 0
+        g_CandidateHits := 0
+    } else if (lang != g_LastStableLangId) {
+        if (g_CandidateLangId = lang) {
+            g_CandidateHits += 1
+        } else {
+            g_CandidateLangId := lang
+            g_CandidateHits := 1
+        }
+
+        if (g_CandidateHits >= 2) {
+            old := g_LastStableLangId
+            g_LastStableLangId := lang
+            g_CandidateLangId := 0
+            g_CandidateHits := 0
+            try DebugLog("LangStable: " . Format("0x{:04X}", old) . " -> " . Format("0x{:04X}", lang) . " proc=" . GetActiveProcessName())
+        }
+    } else {
+        g_CandidateLangId := 0
+        g_CandidateHits := 0
     }
 
-    ; Keyboard-driven desired state.
+    isHeb := (g_LastStableLangId = 0x040D)
+
+    ; Enforce invariant: enabled follows stable keyboard state.
     desired := isHeb
-
-    ; English invariant: never allow ON unless user manually toggled (which pauses polling).
-    if (!isHeb)
-        desired := false
 
     if (g_Enabled != desired) {
         g_Enabled := desired
         UpdateTray()
     }
+
+    g_LastActiveHwnd := hwnd
 }
+
 
 ToggleMode() {
     global g_Enabled, g_AutoEnable
@@ -1062,7 +1067,7 @@ FixBidiPasteLine(line) {
 
     if (tokens.Length <= 1) {
         ; Still fix letter-order inside the single token, but keep whitespace untouched.
-        fixed := ReverseHebrewRuns(tokens.Length = 1 ? tokens[1] : core)
+        fixed := FixTokenRTL(tokens.Length = 1 ? tokens[1] : core)
         return lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail
     }
 
@@ -1072,7 +1077,7 @@ FixBidiPasteLine(line) {
     out := ""
     Loop tokens.Length {
         tok := tokens[tokens.Length - A_Index + 1]
-        tok := ReverseHebrewRuns(tok)
+        tok := FixTokenRTL(tok)
         out .= tok
         if (A_Index < tokens.Length) {
             sepIdx := seps.Length - A_Index + 1
@@ -1082,6 +1087,91 @@ FixBidiPasteLine(line) {
     out .= trailingSep
 
     return lead . out . trail
+}
+
+ReverseStringSimple(s) {
+    out := ""
+    i := StrLen(s)
+    while (i >= 1) {
+        out .= SubStr(s, i, 1)
+        i -= 1
+    }
+    return out
+}
+
+FixTokenRTL(tok) {
+    ; Fix a single token for RTL display in a non-BiDi renderer.
+    ; - Hebrew letters: reverse inside Hebrew runs
+    ; - Digits: keep digit run order ("34" stays "34")
+    ; - Punctuation: considered RTL-affecting (moves with Hebrew/digits)
+    ; - Latin letters: treated as LTR anchors (do not reorder across Hebrew)
+
+    if (tok = "")
+        return tok
+
+    ; Build runs: {kind, text}
+    runs := []
+    i := 1
+    while (i <= StrLen(tok)) {
+        ch := SubStr(tok, i, 1)
+        kind := "punct"
+        if IsHebrewChar(ch)
+            kind := "heb"
+        else if RegExMatch(ch, "[0-9]")
+            kind := "digit"
+        else if RegExMatch(ch, "[A-Za-z]")
+            kind := "latin"
+
+        j := i
+        while (j <= StrLen(tok)) {
+            ch2 := SubStr(tok, j, 1)
+            kind2 := "punct"
+            if IsHebrewChar(ch2)
+                kind2 := "heb"
+            else if RegExMatch(ch2, "[0-9]")
+                kind2 := "digit"
+            else if RegExMatch(ch2, "[A-Za-z]")
+                kind2 := "latin"
+            if (kind2 != kind)
+                break
+            j += 1
+        }
+
+        txt := SubStr(tok, i, j - i)
+        runs.Push({k: kind, t: txt})
+        i := j
+    }
+
+    ; Reverse Hebrew letters inside heb runs
+    for idx, r in runs {
+        if (r.k = "heb")
+            r.t := ReverseStringSimple(r.t)
+        runs[idx] := r
+    }
+
+    ; Reorder runs: reverse the sequence of RTL-affecting runs (heb/digit/punct) as a whole,
+    ; but keep latin runs anchored in place.
+    rtlIdx := []
+    for idx, r in runs {
+        if (r.k != "latin")
+            rtlIdx.Push(idx)
+    }
+
+    a := 1
+    b := rtlIdx.Length
+    while (a < b) {
+        ia := rtlIdx[a], ib := rtlIdx[b]
+        tmp := runs[ia]
+        runs[ia] := runs[ib]
+        runs[ib] := tmp
+        a += 1
+        b -= 1
+    }
+
+    out := ""
+    for _, r in runs
+        out .= r.t
+    return out
 }
 
 ReverseHebrewRuns(s) {
@@ -1177,7 +1267,7 @@ FixMixedScriptLine(line) {
     Loop Min(3, tokens.Length) {
         idx := A_Index
         before := tokens[idx]
-        after := ReverseHebrewRuns(before)
+        after := FixTokenRTL(before)
         tokens[idx] := after
 
         if (before != after)
@@ -1225,7 +1315,9 @@ ReverseString(s) {
 ; HOTKEYS (Affinity only, enabled)
 ; =============================================================================
 
-#HotIf g_Enabled && IsAffinityActive()
+#HotIf g_Enabled && IsAutoEnableAllowedForActiveApp()
+; (Per-key typing / navigation / undo-buffer remain whitelisted-only)
+
 
 ; Mouse click likely changes selection/caret; clear undo buffer.
 ~LButton::{
