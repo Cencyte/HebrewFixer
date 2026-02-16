@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.8"
+global HF_VERSION := "v1.0.10"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -2213,9 +2213,16 @@ CheckForUpdatesImpl(force := false) {
             return
         }
 
-        body := http.ResponseText
+        ; WinHTTP ResponseText can be unreliable depending on codepage; decode ResponseBody as UTF-8.
+        try {
+            body := StrGet(http.ResponseBody, "UTF-8")
+        } catch {
+            body := http.ResponseText
+        }
+
         if !RegExMatch(body, '"tag_name"\\s*:\\s*"([^"]+)"', &m) {
-            try DebugLog("UpdateCheck: tag_name not found in response")
+            ; Log a snippet to aid debugging (avoid spamming full JSON)
+            try DebugLog("UpdateCheck: tag_name not found. status=" . http.Status . " sample=" . SubStr(body, 1, 200))
             return
         }
 
