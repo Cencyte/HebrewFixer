@@ -48,6 +48,10 @@ global g_LastActiveHwnd := 0
 global g_PollPaused := false
 global g_PollPauseHwnd := 0
 
+; Settings GUI focus guard: prevent toggle hotkey firing while editing shortcut field.
+global g_SettingsGuiHwnd := 0
+global g_SettingsHotkeyCtrlHwnd := 0
+
 ; Stable layout polling state (Option B: accept change after 2 consecutive polls)
 global g_LastStableLangId := 0
 global g_CandidateLangId := 0
@@ -560,8 +564,10 @@ ShowSettingsGui() {
     settingsGui.AddText("xm ym", "Toggle hotkey:")
     ; Native Windows hotkey control (robust). Win key is ignored for now.
     hotkeyCtrl := settingsGui.AddHotkey("x+10 yp-2 w200", g_ToggleHotkey)
-    settingsGui.AddText("xm y+6 c606060", "Tip: click the field and press Ctrl/Alt/Shift + key (Win disabled).")
 
+    ; store HWNDs so we can suppress global toggle while user is editing this control
+    g_SettingsGuiHwnd := settingsGui.Hwnd
+    try g_SettingsHotkeyCtrlHwnd := hotkeyCtrl.Hwnd
     cbAuto := settingsGui.AddCheckbox("xm y+14", "Auto-enable on Hebrew keyboard")
     cbAuto.Value := g_AutoEnable
 
@@ -640,6 +646,8 @@ SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
     SaveSettings()
     SetupTray()  ; rebuild tray menu so the hotkey label updates immediately
     settingsGui.Destroy()
+    g_SettingsGuiHwnd := 0
+    g_SettingsHotkeyCtrlHwnd := 0
 }
 
 ; =============================================================================
@@ -825,6 +833,17 @@ CheckAutoEnable() {
 ToggleMode() {
     global g_Enabled, g_AutoEnable
     global g_PollPaused, g_PollPauseHwnd
+    global g_SettingsGuiHwnd, g_SettingsHotkeyCtrlHwnd
+
+    ; Guard: if the Settings hotkey control is focused, don't trigger toggle.
+    try {
+        if (g_SettingsGuiHwnd && WinActive("ahk_id " . g_SettingsGuiHwnd)) {
+            foc := ControlGetFocus("ahk_id " . g_SettingsGuiHwnd)
+            ; Hotkey control class is typically "msctls_hotkey32".
+            if InStr(foc, "msctls_hotkey32")
+                return
+        }
+    }
 
     g_Enabled := !g_Enabled
 
