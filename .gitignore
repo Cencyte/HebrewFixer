@@ -9,6 +9,9 @@ bin/
 
 # Installer sources (keep local, but do not track in git)
 Installer/HebrewFixer_Setup.iss
+
+# Local design assets (keep local)
+Icon/Images/HebrewFixer_App_Logo.png
 Installer/BuildInstaller.ps1
 Installer/CleanupNotifyIconSettings.ps1
 Installer/PromoteTrayIcon*.ps1
