@@ -26,6 +26,20 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Ensure-CleanBinDir([string]$binDir) {
+    if (-not (Test-Path -LiteralPath $binDir)) {
+        New-Item -ItemType Directory -Path $binDir | Out-Null
+        return
+    }
+
+    $patterns = @('HebrewFixer_Setup.exe','HebrewFixer_v*_portable.zip','SHA256SUMS.txt','tmp_inno_out_*','tmp_inno_out')  # do NOT delete HebrewFixer.exe (installer input)
+    foreach ($pat in $patterns) {
+        Get-ChildItem -LiteralPath $binDir -Filter $pat -ErrorAction SilentlyContinue | ForEach-Object {
+            try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } catch {}
+        }
+    }
+}
+
 function Log([string]$msg) {
     $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
     Write-Host "[$ts] $msg"
@@ -75,6 +89,9 @@ if (-not (Test-Path -LiteralPath $IssFileLocal)) {
 if (-not (Test-Path -LiteralPath $OutDirLocal)) {
     New-Item -ItemType Directory -Path $OutDirLocal | Out-Null
 }
+
+# Clean bin/ before building so artifacts don't accumulate across runs.
+try { Ensure-CleanBinDir $OutDirLocal } catch {}
 
 $runId = [Guid]::NewGuid().ToString('N')
 $tmpOutDirLocal = Join-Path $OutDirLocal ("tmp_inno_out_" + $runId)
@@ -200,6 +217,15 @@ for ($i = 1; $i -le $ReplaceRetries; $i++) {
 }
 
 Log "SUCCESS: built $finalInstallerLocal"
+
+# Cleanup temp output directory to avoid bin/ accumulation.
+try {
+    if (Test-Path -LiteralPath $tmpOutDirLocal) {
+        Remove-Item -LiteralPath $tmpOutDirLocal -Recurse -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    # non-fatal
+}
 
 # Post-sign (more reliable than relying on ISCC SignTools, especially across environments)
 try {
