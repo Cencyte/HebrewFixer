@@ -11,6 +11,16 @@
 ; RTL Hebrew typing support for Affinity Designer
 ; https://github.com/Cencyte/HebrewFixer
 
+; ----------------------
+; Optional Authenticode signing (self-signed or real cert)
+; Enable by setting env var HF_SIGN_PFX to a Windows path of a .pfx
+; Optionally set HF_SIGN_PFX_PASS for the PFX password.
+; Optionally set HF_SIGNTOOL_PATH to signtool.exe path.
+; ----------------------
+#define HF_SIGN_PFX GetEnv('HF_SIGN_PFX')
+#define HF_SIGN_PFX_PASS GetEnv('HF_SIGN_PFX_PASS')
+#define HF_SIGNTOOL_PATH GetEnv('HF_SIGNTOOL_PATH')
+
 [Setup]
 AppName=HebrewFixer
 AppVersion=1.0.0
@@ -33,6 +43,10 @@ SolidCompression=yes
 WizardStyle=modern
 ; No admin privileges required - installs per-user
 PrivilegesRequired=lowest
+
+#if Len(HF_SIGN_PFX) > 0
+SignTool=hf_sign
+#endif
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 ; Uninstall settings
@@ -41,6 +55,13 @@ CreateUninstallRegKey=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+
+#if Len(HF_SIGN_PFX) > 0
+[SignTools]
+; Use signtool.exe to sign the generated installer.
+; Note: we sign after build; ISCC runs on Windows so it can execute signtool.
+Name: "hf_sign"; Command: "{#Iif(Len(HF_SIGNTOOL_PATH)>0, HF_SIGNTOOL_PATH, 'C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.19041.0\\x64\\signtool.exe')}" sign /fd SHA256 /f "{#HF_SIGN_PFX}" {#Iif(Len(HF_SIGN_PFX_PASS)>0, '/p "' + HF_SIGN_PFX_PASS + '"', '')} "$f"
+#endif
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

@@ -102,6 +102,51 @@ $psi.RedirectStandardError = $true
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
 
+# Optional signing: set env vars consumed by the .iss preprocessor.
+try {
+    # In WSL pwsh, $env:USERPROFILE may be empty. Derive the Windows PFX path via wslpath.
+    $pfxWin = $null
+    $pfxLocal = $null
+
+    if ($IsWindows) {
+        $pfxWin = Join-Path $env:USERPROFILE 'HebrewFixer_codesign.pfx'
+        $pfxLocal = $pfxWin
+    } else {
+        # Known expected location of the PFX in this environment.
+        $pfxLocal = '/mnt/c/Users/FireSongz/HebrewFixer_codesign.pfx'
+        if (Test-Path -LiteralPath $pfxLocal) {
+            $pfxWin = (& wslpath -w -- "$pfxLocal" 2>$null).Trim()
+        }
+    }
+
+    if (-not $pfxWin -or -not $pfxLocal) {
+        throw "Could not determine PFX path (pfxWin/pfxLocal)"
+    }
+    if (Test-Path -LiteralPath $pfxLocal) {
+        $psi.Environment['HF_SIGN_PFX'] = $pfxWin
+
+        # Pass password if caller set it in env.
+        if ($env:HF_SIGN_PFX_PASS) {
+            $psi.Environment['HF_SIGN_PFX_PASS'] = $env:HF_SIGN_PFX_PASS
+        }
+
+        # Prefer newest x64 signtool if present.
+        $sig1 = 'C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\signtool.exe'
+        $sig2 = 'C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.19041.0\\x64\\signtool.exe'
+        if (Test-Path (Convert-ToLocalPathIfNeeded $sig1)) {
+            $psi.Environment['HF_SIGNTOOL_PATH'] = $sig1
+        } elseif (Test-Path (Convert-ToLocalPathIfNeeded $sig2)) {
+            $psi.Environment['HF_SIGNTOOL_PATH'] = $sig2
+        }
+
+        Log "Signing enabled (HF_SIGN_PFX=$pfxWin)"
+    } else {
+        Log "Signing disabled (no PFX at $pfxWin)"
+    }
+} catch {
+    Log "Signing config error: $($_.Exception.Message)"
+}
+
 $exitCode = $null
 $stdout = $null
 $stderr = $null
@@ -155,3 +200,33 @@ for ($i = 1; $i -le $ReplaceRetries; $i++) {
 }
 
 Log "SUCCESS: built $finalInstallerLocal"
+
+# Post-sign (more reliable than relying on ISCC SignTools, especially across environments)
+try {
+    if ($psi.Environment.ContainsKey('HF_SIGN_PFX') -and $psi.Environment['HF_SIGN_PFX']) {
+        $pfxWin = $psi.Environment['HF_SIGN_PFX']
+        $sigWin = $psi.Environment['HF_SIGNTOOL_PATH']
+        $pass = $null
+        if ($psi.Environment.ContainsKey('HF_SIGN_PFX_PASS')) { $pass = $psi.Environment['HF_SIGN_PFX_PASS'] }
+
+        $finalWin = Convert-ToWindowsPathIfNeeded $finalInstallerLocal
+
+        $passArg = ''
+        if ($pass) { $passArg = " /p `"$pass`"" }
+
+        $cmd = "& `"$sigWin`" sign /fd SHA256 /f `"$pfxWin`"$passArg `"$finalWin`""
+        Log "Signing installer: $cmd"
+
+        # Run in Windows PowerShell so signtool.exe can execute
+        $out = & powershell.exe -NoProfile -Command $cmd 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "signtool sign failed (exit=$LASTEXITCODE): $out"
+        }
+        if ($out) { Log "signtool output:`n$out" }
+
+        Log "SIGNED: $finalInstallerLocal"
+    }
+} catch {
+    Log "SIGNING FAILED: $($_.Exception.Message)"
+}
+
