@@ -367,15 +367,6 @@ LoadSettings() {
     g_CheckUpdatesOnStartup := IniRead(g_ConfigIni, "General", "CheckUpdatesOnStartup", "1") = "1"
 g_SaveUpdateResponseDump := IniRead(g_ConfigIni, "Updates", "SaveUpdateResponseDump", "0") = "1"
 
-    ; If dumping is disabled, remove any previous dump so it doesn't linger.
-    if !g_SaveUpdateResponseDump {
-        try {
-            dumpPath := g_ConfigDir . "\\hf_update_last_response.json"
-            if FileExist(dumpPath)
-                FileDelete(dumpPath)
-        }
-    }
-
     LoadWhitelistFromIni()
 
     if firstRun {
@@ -395,6 +386,8 @@ SaveSettings() {
     IniWrite(g_AutoEnableAllApps ? "1" : "0", g_ConfigIni, "General", "AutoEnableAllApps")
     IniWrite(g_ToggleHotkey, g_ConfigIni, "General", "ToggleHotkey")
     IniWrite(g_CheckUpdatesOnStartup ? "1" : "0", g_ConfigIni, "General", "CheckUpdatesOnStartup")
+IniWrite(g_SaveUpdateResponseDump ? "1" : "0", g_ConfigIni, "Updates", "SaveUpdateResponseDump")
+
     SaveWhitelistToIni()
 
     ; keep human-editable
@@ -724,6 +717,10 @@ ShowSettingsGui() {
 
     cbUpd := settingsGui.AddCheckbox("xm y+10", "Check for updates on startup")
     cbUpd.Value := g_CheckUpdatesOnStartup
+
+    cbDump := settingsGui.AddCheckbox("xm y+6", "Save update-check response dump (debug)")
+    cbDump.Value := g_SaveUpdateResponseDump
+
     settingsGui.AddText("xm y+16", "Whitelist (process names like AffinityDesigner.exe):")
     lv := settingsGui.AddListView("xm y+6 w400 r8", ["Process"])
     for proc, _ in g_Whitelist
@@ -763,7 +760,7 @@ RestoreToggleHotkeyAfterSettings() {
     }
 }
 
-SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
+SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, cbDump, lv) {
     global g_AutoEnable, g_AutoEnableAllApps, g_CheckUpdatesOnStartup, g_SaveUpdateResponseDump
     global g_Whitelist
 
@@ -774,6 +771,8 @@ SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
     g_AutoEnable := cbAuto.Value = 1
     g_AutoEnableAllApps := cbAll.Value = 1
     g_CheckUpdatesOnStartup := cbUpd.Value = 1
+g_SaveUpdateResponseDump := cbDump.Value = 1
+
     newWL := Map()
     Loop lv.GetCount() {
         p := Trim(lv.GetText(A_Index, 1))
