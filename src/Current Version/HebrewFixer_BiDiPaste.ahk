@@ -63,6 +63,7 @@ global g_NoTooltip := false
 global g_ToggleHotkey := HF_DEFAULT_TOGGLE_HOTKEY_AHK
 
 global g_CheckUpdatesOnStartup := true
+global g_SaveUpdateResponseDump := false
 
 global g_ConfigDir := ""
 global g_ConfigIni := ""
@@ -364,6 +365,7 @@ LoadSettings() {
     }
 
     g_CheckUpdatesOnStartup := IniRead(g_ConfigIni, "General", "CheckUpdatesOnStartup", "1") = "1"
+g_SaveUpdateResponseDump := IniRead(g_ConfigIni, "Updates", "SaveUpdateResponseDump", "0") = "1"
 
     LoadWhitelistFromIni()
 
@@ -384,6 +386,7 @@ SaveSettings() {
     IniWrite(g_AutoEnableAllApps ? "1" : "0", g_ConfigIni, "General", "AutoEnableAllApps")
     IniWrite(g_ToggleHotkey, g_ConfigIni, "General", "ToggleHotkey")
     IniWrite(g_CheckUpdatesOnStartup ? "1" : "0", g_ConfigIni, "General", "CheckUpdatesOnStartup")
+IniWrite(g_SaveUpdateResponseDump ? "1" : "0", g_ConfigIni, "Updates", "SaveUpdateResponseDump")
 
     SaveWhitelistToIni()
 
@@ -686,7 +689,7 @@ TrackUndoBoundary() {
 
 
 ShowSettingsGui() {
-    global g_AutoEnable, g_AutoEnableAllApps, g_Whitelist, g_ToggleHotkey, g_CheckUpdatesOnStartup
+    global g_AutoEnable, g_AutoEnableAllApps, g_Whitelist, g_ToggleHotkey, g_CheckUpdatesOnStartup, g_SaveUpdateResponseDump
 
     settingsGui := Gui("+MinSize420x360", "HebrewFixer Settings")
     settingsGui.SetFont("s9")
@@ -715,6 +718,9 @@ ShowSettingsGui() {
     cbUpd := settingsGui.AddCheckbox("xm y+10", "Check for updates on startup")
     cbUpd.Value := g_CheckUpdatesOnStartup
 
+    cbDump := settingsGui.AddCheckbox("xm y+6", "Save update-check response dump (debug)")
+    cbDump.Value := g_SaveUpdateResponseDump
+
     settingsGui.AddText("xm y+16", "Whitelist (process names like AffinityDesigner.exe):")
     lv := settingsGui.AddListView("xm y+6 w400 r8", ["Process"])
     for proc, _ in g_Whitelist
@@ -737,7 +743,7 @@ ShowSettingsGui() {
     ))
 
     btnSave.OnEvent("Click", (*) => (
-        SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv)
+        SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, cbDump, lv)
     ))
     btnCancel.OnEvent("Click", (*) => (RestoreToggleHotkeyAfterSettings(), settingsGui.Destroy()))
 
@@ -754,8 +760,8 @@ RestoreToggleHotkeyAfterSettings() {
     }
 }
 
-SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
-    global g_AutoEnable, g_AutoEnableAllApps, g_CheckUpdatesOnStartup
+SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, cbDump, lv) {
+    global g_AutoEnable, g_AutoEnableAllApps, g_CheckUpdatesOnStartup, g_SaveUpdateResponseDump
     global g_Whitelist
 
     newHotkey := Trim(hotkeyCtrl.Value)
@@ -765,6 +771,7 @@ SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv) {
     g_AutoEnable := cbAuto.Value = 1
     g_AutoEnableAllApps := cbAll.Value = 1
     g_CheckUpdatesOnStartup := cbUpd.Value = 1
+g_SaveUpdateResponseDump := cbDump.Value = 1
 
     newWL := Map()
     Loop lv.GetCount() {
@@ -1156,7 +1163,9 @@ HttpGetResponseText(http) {
 }
 
 SaveUpdateResponseDump(body) {
-    global g_ConfigDir
+    global g_ConfigDir, g_SaveUpdateResponseDump
+    if !g_SaveUpdateResponseDump
+        return
     try {
         path := g_ConfigDir . "\\hf_update_last_response.json"
         ; FileDelete throws if file doesn't exist; ignore that.
@@ -2261,7 +2270,7 @@ CheckForUpdatesImpl(force := false) {
 
         ; NOTE: AHK strings do not treat backslash as an escape. Use single backslashes for regex metacharacters.
         if !RegExMatch(body, '"tag_name"\s*:\s*"([^"]+)"', &m) {
-            try DebugLog("UpdateCheck: tag_name not found. status=" . http.Status . " saving full response...")
+            try DebugLog("UpdateCheck: tag_name not found. status=" . http.Status)
             SaveUpdateResponseDump(body)
             return
         }

@@ -48,7 +48,7 @@ param(
     # Optional extra debug logging.
     [switch]$DebugMode = $false,
     
-    [string]$LogPath = "C:\Users\FireSongz\AppData\Roaming\HebrewFixer\InstallLogs\notification_area_icons_installer.log"
+    [string]$LogPath = (Join-Path $env:USERPROFILE 'AppData\Roaming\HebrewFixer\InstallLogs\notification_area_icons_installer.log')
 )
 
 $ErrorActionPreference = 'Continue'
