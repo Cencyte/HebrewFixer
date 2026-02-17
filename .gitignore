@@ -7,6 +7,13 @@
 # Build outputs (do not commit)
 bin/
 
+# Installer sources (keep local, but do not track in git)
+Installer/HebrewFixer_Setup.iss
+Installer/BuildInstaller.ps1
+Installer/CleanupNotifyIconSettings.ps1
+Installer/PromoteTrayIcon*.ps1
+Installer/REPORT_Windows_TrayIcon_Persistence.md
+
 # Temporary working files
 Tmp/
 *.tmp
