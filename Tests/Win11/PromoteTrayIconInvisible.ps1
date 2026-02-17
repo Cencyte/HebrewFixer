@@ -13,7 +13,7 @@
 .PARAMETER InstallerHeight
     Installer window height (used as Settings window height)
 .PARAMETER AppName
-    App name to toggle (e.g., "HebrewFixer1998.exe")
+    App name to toggle (e.g., "HebrewFixer.exe")
 .PARAMETER LogPath
     Primary log path (installer-friendly). When -Debug is enabled, an additional log is written to the Tests directory.
 .PARAMETER Debug
