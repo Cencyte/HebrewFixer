@@ -746,7 +746,7 @@ ShowSettingsGui() {
     ))
 
     btnSave.OnEvent("Click", (*) => (
-        SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, lv)
+        SettingsGuiSave(settingsGui, hotkeyCtrl, cbAuto, cbAll, cbUpd, cbDump, lv)
     ))
     btnCancel.OnEvent("Click", (*) => (RestoreToggleHotkeyAfterSettings(), settingsGui.Destroy()))
 
