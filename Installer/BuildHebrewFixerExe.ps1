@@ -7,7 +7,7 @@ param(
 
     # Bakes the app icon into the compiled EXE resources (this is NOT the runtime tray icon).
     # Default: your Affinity-style icon.
-    [string]$IconFile = (Join-Path $PSScriptRoot '..\\Icon\\ICOs\\hebrewfixer_app.ico'),
+    [string]$IconFile = (Join-Path $PSScriptRoot '..\Icon\ICOs\hebrew_fixer_affinity_on.ico'),
 
     # IMPORTANT: For v2 compilation, BaseFile must be AutoHotkey64.exe / AutoHotkey32.exe from the v2 install folder.
     [string]$BaseFile = 'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe'
