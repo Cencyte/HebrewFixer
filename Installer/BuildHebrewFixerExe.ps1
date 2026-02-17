@@ -15,21 +15,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Ensure-CleanBinDir([string]$binDir) {
-    if (-not (Test-Path -LiteralPath $binDir)) {
-        New-Item -ItemType Directory -Path $binDir | Out-Null
-        return
-    }
-
-    # Remove common build artifacts but keep the directory itself.
-    $patterns = @('HebrewFixer.exe','HebrewFixer_Setup.exe','HebrewFixer_v*_portable.zip','SHA256SUMS.txt','tmp_inno_out_*','tmp_inno_out','tmp_*')
-    foreach ($pat in $patterns) {
-        Get-ChildItem -LiteralPath $binDir -Filter $pat -ErrorAction SilentlyContinue | ForEach-Object {
-            try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } catch {}
-        }
-    }
-}
-
 function Log($msg) {
     $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
     Write-Host "[$ts] $msg"
@@ -80,13 +65,6 @@ $Ahk2ExePathLocal = Convert-ToLocalPathIfNeeded $Ahk2ExePath
 $AhkScriptLocal   = Convert-ToLocalPathIfNeeded $AhkScript
 $OutExeLocal      = Convert-ToLocalPathIfNeeded $OutExe
 
-# Clean bin/ before rebuilding so artifacts don't accumulate across runs.
-try {
-    $binDir = Split-Path -Parent $OutExeLocal
-    Ensure-CleanBinDir $binDir
-} catch {
-    # non-fatal
-}
 $IconFileLocal    = Convert-ToLocalPathIfNeeded $IconFile
 $BaseFileLocal    = Convert-ToLocalPathIfNeeded $BaseFile
 
