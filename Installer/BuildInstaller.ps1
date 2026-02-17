@@ -94,8 +94,6 @@ $runId = [Guid]::NewGuid().ToString('N')
 $tmpOutDirLocal = Join-Path $OutDirLocal ("tmp_inno_out_" + $runId)
 New-Item -ItemType Directory -Path $tmpOutDirLocal | Out-Null
 
-try {
-
 $tmpBase = "HebrewFixer_Setup_tmp_" + $runId
 $tmpInstallerLocal = Join-Path $tmpOutDirLocal ($tmpBase + '.exe')
 $finalInstallerLocal = Join-Path $OutDirLocal $OutFileName
