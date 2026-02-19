@@ -7,7 +7,7 @@ SendMode("Input")
 SetKeyDelay(-1, -1)
 
 ; -------------------- constants --------------------
-global HF_VERSION := "v1.0.8"
+global HF_VERSION := "v1.0.9"
 ; Increment this when debugging build/source mismatches.
 global HF_BUILD_STAMP := "2026-02-15-mixed-script-token-algo-v2"
 global HF_HEBREW_RE := "[\x{0590}-\x{05FF}]"  ; Hebrew Unicode range
@@ -2006,6 +2006,11 @@ $+Right::{
 }
 
 ; Ctrl+Arrow word navigation should also respect RTL direction.
+; =============================================================================
+; HOTKEYS (Ctrl-based) - must allow Ctrl/Alt to be held
+; =============================================================================
+#HotIf g_Enabled && IsAutoEnableAllowedForActiveApp() && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P")
+
 $^Left::{
     global g_UndoBufferEnabled
     if g_UndoBufferEnabled
