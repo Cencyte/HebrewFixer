@@ -1347,9 +1347,7 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
         runs[idx] := r
     }
 
-    ; If token contains any Latin letters, do NOT reorder runs across the Latin substring.
-    ; Rule: English letters stay in-place; Hebrew parts are reversed internally but remain on their side.
-    ; (Example: "דגFSDגכדכגד" => "גדFSDגדכדכג", NOT swapping sides around FSD.)
+    ; Determine if this token contains any Latin runs.
     hasLatin := false
     for _, r in runs {
         if (r.k = "latin") {
@@ -1358,36 +1356,34 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
         }
     }
 
+    ; Punctuation rules:
+    ; - Always reverse punctuation runs internally (e.g. "*^^#" -> "#^^*")
+    ; - Edge punctuation anchoring (Hebrew-only tokens): anchor only "decorative" edges, meaning
+    ;   multi-character punctuation runs like "---" or "!!!". A single leading apostrophe should NOT be
+    ;   anchored; it should be allowed to move with reversal (so "'גרם" -> "םרג'").
+    for idx, r in runs {
+        if (r.k = "punct") {
+            r.t := ReverseStringSimple(r.t)
+            runs[idx] := r
+        }
+    }
+
     if !hasLatin {
         ; Hebrew-only / Hebrew+digits: reorder runs (digits move as a unit but digit order is preserved).
-        ; Punctuation rules (Hebrew-only tokens):
-        ;   - Reverse punctuation runs internally (e.g. "*^^#" -> "#^^*")
-        ;   - Keep leading/trailing punctuation runs anchored at the token edges (do not move them)
-        ; Digit rule:
-        ;   - If this token is at the start of the line and begins with digits, keep that leading digit
-        ;     run anchored at the beginning.
+        ; Also supports keeping leading digits anchored (line-start rule).
 
-        ; Reverse punctuation runs internally
-        for idx, r in runs {
-            if (r.k = "punct") {
-                r.t := ReverseStringSimple(r.t)
-                runs[idx] := r
-            }
-        }
-
-        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct")
-        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct")
+        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && StrLen(runs[1].t) >= 2)
+        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct" && StrLen(runs[runs.Length].t) >= 2)
 
         rtlIdx := []
         for idx, r in runs {
-            if (r.k = "latin")
-                continue
             if (keepLeadingDigits && idx = 1 && r.k = "digit")
                 continue
             if (fixedLeadPunct && idx = 1 && r.k = "punct")
                 continue
             if (fixedTrailPunct && idx = runs.Length && r.k = "punct")
                 continue
+            ; (no latin runs in this branch)
             rtlIdx.Push(idx)
         }
 
@@ -1401,6 +1397,43 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
             a += 1
             b -= 1
         }
+    } else {
+        ; Mixed-script token: keep Latin runs anchored in-place, but reverse the order of NON-Latin runs
+        ; *within each segment between Latin runs*. This fixes cases like:
+        ;   TOK'םרג -> TOKגרם'
+        ; while still not swapping Hebrew runs across Latin (e.g. דגFSDגכדכגד keeps sides).
+
+        seg := []
+        segIdx := []
+
+        FlushSeg() {
+            if (segIdx.Length <= 1) {
+                seg := []
+                segIdx := []
+                return
+            }
+            a := 1
+            b := segIdx.Length
+            while (a < b) {
+                ia := segIdx[a], ib := segIdx[b]
+                tmp := runs[ia]
+                runs[ia] := runs[ib]
+                runs[ib] := tmp
+                a += 1
+                b -= 1
+            }
+            seg := []
+            segIdx := []
+        }
+
+        for idx, r in runs {
+            if (r.k = "latin") {
+                FlushSeg()
+                continue
+            }
+            segIdx.Push(idx)
+        }
+        FlushSeg()
     }
 
     out := ""
@@ -1594,6 +1627,15 @@ FixMixedScriptLine(line) {
                 newSeps.Push("")      ; no whitespace between latin and suffix
                 newTokens.Push(hebSuffix)
                 newSeps.Push(sep)     ; original whitespace stays after suffix
+                continue
+            }
+
+            if RegExMatch(hebPrefix, "^[0-9]+$") {
+                ; <Digits><LatinRun><HebSuffix> (e.g. "99TOKאםל")
+                newTokens.Push(hebPrefix . latinRun)
+                newSeps.Push("")      ; no whitespace between latin and suffix
+                newTokens.Push(hebSuffix)
+                newSeps.Push(sep)
                 continue
             }
 
