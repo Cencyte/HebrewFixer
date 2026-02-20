@@ -1261,7 +1261,7 @@ FixBidiPasteLine(line) {
         ; Special rule: if the line starts with digits, keep that leading digit run at the start.
         single := (tokens.Length = 1 ? tokens[1] : core)
         keepLeadDigits := RegExMatch(single, "^[0-9]+")
-        fixed := FixTokenRTL(single, keepLeadDigits)
+        fixed := FixTokenRTL(single, keepLeadDigits, false)
         return lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail
     }
 
@@ -1273,7 +1273,7 @@ FixBidiPasteLine(line) {
         tok := tokens[tokens.Length - A_Index + 1]
         ; If the original line begins with digits, keep that leading digit run anchored in-place.
         keepLeadDigits := (tokens.Length - A_Index + 1 = 1 && RegExMatch(tok, "^[0-9]+"))
-        tok := FixTokenRTL(tok, keepLeadDigits)
+        tok := FixTokenRTL(tok, keepLeadDigits, false)
         out .= tok
         if (A_Index < tokens.Length) {
             sepIdx := seps.Length - A_Index + 1
@@ -1295,7 +1295,7 @@ ReverseStringSimple(s) {
     return out
 }
 
-FixTokenRTL(tok, keepLeadingDigits := false) {
+FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false) {
     ; Fix a single token for RTL display in a non-BiDi renderer.
     ; - Hebrew letters: reverse inside Hebrew runs
     ; - Digits: keep digit run order ("34" stays "34")
@@ -1372,7 +1372,7 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
         ; Hebrew-only / Hebrew+digits: reorder runs (digits move as a unit but digit order is preserved).
         ; Also supports keeping leading digits anchored (line-start rule).
 
-        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && StrLen(runs[1].t) >= 2)
+        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && (keepLeadingPunct || StrLen(runs[1].t) >= 2))
         fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct" && StrLen(runs[runs.Length].t) >= 2)
 
         rtlIdx := []
@@ -1398,9 +1398,12 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
             b -= 1
         }
     } else {
-        ; Mixed-script token: keep Latin runs anchored in-place, but reverse the order of NON-Latin runs
-        ; *within each segment between Latin runs*. This fixes cases like:
-        ;   TOK'םרג -> TOKגרם'
+        ; Mixed-script token: keep Latin runs anchored in-place.
+        ; Punctuation is also treated as an in-segment anchor/separator (it stays in-place).
+        ; We reverse the order of only the Hebrew/digit runs *within each segment between Latin runs*,
+        ; leaving punctuation positions untouched. This fixes cases like:
+        ;   TOK'םרג -> TOK'גרם
+        ;   א'ם'ל'T -> ל'ם'א'T
         ; while still not swapping Hebrew runs across Latin (e.g. דגFSDגכדכגד keeps sides).
 
         seg := []
@@ -1431,6 +1434,9 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
                 FlushSeg()
                 continue
             }
+            ; In mixed-script tokens, keep punctuation anchored in-place.
+            if (r.k = "punct")
+                continue
             segIdx.Push(idx)
         }
         FlushSeg()
@@ -1662,7 +1668,14 @@ FixMixedScriptLine(line) {
     ;    - Latin letters are anchors inside the token
     for iTok, t in tokens {
         keepLeadDigits := (iTok = 1 && RegExMatch(t, "^[0-9]+"))
-        tokens[iTok] := FixTokenRTL(t, keepLeadDigits)
+
+        ; If a token starts with punctuation and follows a Latin token (even across whitespace),
+        ; keep that leading punctuation anchored to the start of the token.
+        keepLeadPunct := false
+        if (RegExMatch(t, "^\p{P}") && iTok > 1 && RegExMatch(tokens[iTok-1], "[A-Za-z]"))
+            keepLeadPunct := true
+
+        tokens[iTok] := FixTokenRTL(t, keepLeadDigits, keepLeadPunct)
     }
 
     ; 2) Reverse contiguous groups of non-Latin tokens, keeping Latin-containing tokens anchored.
@@ -1682,6 +1695,16 @@ FixMixedScriptLine(line) {
             iTok += 1
         finish := iTok - 1
 
+        ; If the group starts with leading punctuation (e.g. "'םרג") treat that punctuation
+        ; as anchored to the boundary (often right after a Latin token). When we reverse the
+        ; group token order, that punctuation should remain at the boundary and therefore attach
+        ; to the NEW first token.
+        grpPrefix := ""
+        if RegExMatch(tokens[start], "^(\p{P}+)(.+)$", &pm) {
+            grpPrefix := pm[1]
+            tokens[start] := pm[2]
+        }
+
         ; Reverse the token order in-place, but keep the whitespace separators anchored
         ; between token slots. (Swapping seps would move the group-end separator into the middle
         ; and can merge tokens, e.g. in "דגFSD... גגככ גגכגכ".)
@@ -1694,6 +1717,9 @@ FixMixedScriptLine(line) {
             a += 1
             b -= 1
         }
+
+        if (grpPrefix != "")
+            tokens[start] := grpPrefix . tokens[start]
     }
 
     out := ""
