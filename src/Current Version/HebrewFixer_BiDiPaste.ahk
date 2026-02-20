@@ -2069,7 +2069,8 @@ $*\:: {
         return
     }
 
-    Send("{Blind}\\")
+    ; Send a single literal backslash. ("\\" in a string literal = one backslash)
+    Send("{Blind}\")
     if g_UndoBufferEnabled
         TrackUndoKey()
 }
@@ -2117,7 +2118,7 @@ $*SC029:: {
 
 ; Comma/period/semicolon are already handled via HebrewMap physical keys (, . ;) above.
 
-; Enter and Tab: track as non-paired (do NOT invalidate buffer).
+; Enter/Tab: Enter should RESET the Ctrl+Z undo buffer so buffered undos never cross lines.
 $Enter:: {
     global g_UndoBufferEnabled
     if ShouldBypassShortcuts() {
@@ -2126,12 +2127,13 @@ $Enter:: {
         Send("{Blind}{Enter}")
         return
     }
+
     Send("{Blind}{Enter}")
-    if g_UndoBufferEnabled {
-        TrackUndoKey()
-        TrackUndoBoundary()
-    }
+    if g_UndoBufferEnabled
+        ClearUndoBuffer()
 }
+$NumpadEnter:: $Enter
+
 $Tab:: {
     global g_UndoBufferEnabled
     if ShouldBypassShortcuts() {
