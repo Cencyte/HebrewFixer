@@ -1216,6 +1216,9 @@ FixBidiPasteLine(line) {
     ; Reversing token order in mixed Hebrew+English tends to produce mirrored sentence-level swaps.
     ; In that case we only fix Hebrew letter order inside Hebrew runs (run-level reversal).
     SetTransformStage("FixBidiPasteLine:latinCheck")
+    ; If the line contains any Latin letters, treat it as mixed-script and apply the
+    ; mixed-script algorithm (Latin anchors). Digits do NOT count as Latin anchors.
+    ; Numeric-only tokens should still allow token-order reversal.
     if RegExMatch(line, "[A-Za-z]") {
         ; Mixed Latin+Hebrew: do NOT use full token reversal or Windows BiDi.
         ; Use HebrewFixer mixed-script token algorithm:
@@ -1255,7 +1258,10 @@ FixBidiPasteLine(line) {
 
     if (tokens.Length <= 1) {
         ; Still fix letter-order inside the single token, but keep whitespace untouched.
-        fixed := FixTokenRTL(tokens.Length = 1 ? tokens[1] : core)
+        ; Special rule: if the line starts with digits, keep that leading digit run at the start.
+        single := (tokens.Length = 1 ? tokens[1] : core)
+        keepLeadDigits := RegExMatch(single, "^[0-9]+")
+        fixed := FixTokenRTL(single, keepLeadDigits)
         return lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail
     }
 
@@ -1265,7 +1271,9 @@ FixBidiPasteLine(line) {
     out := ""
     Loop tokens.Length {
         tok := tokens[tokens.Length - A_Index + 1]
-        tok := FixTokenRTL(tok)
+        ; If the original line begins with digits, keep that leading digit run anchored in-place.
+        keepLeadDigits := (tokens.Length - A_Index + 1 = 1 && RegExMatch(tok, "^[0-9]+"))
+        tok := FixTokenRTL(tok, keepLeadDigits)
         out .= tok
         if (A_Index < tokens.Length) {
             sepIdx := seps.Length - A_Index + 1
@@ -1287,7 +1295,7 @@ ReverseStringSimple(s) {
     return out
 }
 
-FixTokenRTL(tok) {
+FixTokenRTL(tok, keepLeadingDigits := false) {
     ; Fix a single token for RTL display in a non-BiDi renderer.
     ; - Hebrew letters: reverse inside Hebrew runs
     ; - Digits: keep digit run order ("34" stays "34")
@@ -1337,23 +1345,40 @@ FixTokenRTL(tok) {
         runs[idx] := r
     }
 
-    ; Reorder runs: reverse the sequence of RTL-affecting runs (heb/digit/punct) as a whole,
-    ; but keep latin runs anchored in place.
-    rtlIdx := []
-    for idx, r in runs {
-        if (r.k != "latin")
-            rtlIdx.Push(idx)
+    ; If token contains any Latin letters, do NOT reorder runs across the Latin substring.
+    ; Rule: English letters stay in-place; Hebrew parts are reversed internally but remain on their side.
+    ; (Example: "דגFSDגכדכגד" => "גדFSDגדכדכג", NOT swapping sides around FSD.)
+    hasLatin := false
+    for _, r in runs {
+        if (r.k = "latin") {
+            hasLatin := true
+            break
+        }
     }
 
-    a := 1
-    b := rtlIdx.Length
-    while (a < b) {
-        ia := rtlIdx[a], ib := rtlIdx[b]
-        tmp := runs[ia]
-        runs[ia] := runs[ib]
-        runs[ib] := tmp
-        a += 1
-        b -= 1
+    if !hasLatin {
+        ; Hebrew-only / Hebrew+digits: reorder runs (digits move as a unit but digit order is preserved).
+        ; Special rule: if this token is at the start of the line and begins with digits, keep that
+        ; leading digit run anchored at the beginning (never swap it to the end).
+        rtlIdx := []
+        for idx, r in runs {
+            if (r.k = "latin")
+                continue
+            if (keepLeadingDigits && idx = 1 && r.k = "digit")
+                continue
+            rtlIdx.Push(idx)
+        }
+
+        a := 1
+        b := rtlIdx.Length
+        while (a < b) {
+            ia := rtlIdx[a], ib := rtlIdx[b]
+            tmp := runs[ia]
+            runs[ia] := runs[ib]
+            runs[ib] := tmp
+            a += 1
+            b -= 1
+        }
     }
 
     out := ""
@@ -1450,26 +1475,114 @@ FixMixedScriptLine(line) {
         }
     }
 
-    ; Reverse Hebrew runs within tokens
-    ; Also log before/after for the first few tokens to prove the reversal is happening.
-    Loop Min(3, tokens.Length) {
-        idx := A_Index
-        before := tokens[idx]
-        after := FixTokenRTL(before)
-        tokens[idx] := after
+    ; Split tokens of the form <HebPrefix><LatinRun><HebSuffix> so that the HebSuffix becomes its
+    ; own token and can join the contiguous Hebrew-token group to the right for full reversal.
+    ; Example: "דגFSDגכדכגד גגככ גגכגכ" should treat "גכדכגד גגככ גגכגכ" as a 3-token Hebrew block.
+    ; We preserve exact whitespace by inserting an empty separator between the split parts.
+    newTokens := []
+    newSeps := []
+    for iTok, t in tokens {
+        sep := (iTok <= seps.Length) ? seps[iTok] : ""
 
-        if (before != after)
-            DebugLog("MixedScript tok" . idx . " before=" . before . " | after=" . after)
-        else if ClipboardContainsHebrew(before)
-            DebugLog("MixedScript tok" . idx . " contains Hebrew but did not change (check IsHebrewChar/ReverseHebrewRuns)")
+        ; Find first Latin run in the token.
+        firstLatin := 0
+        j := 1
+        while (j <= StrLen(t)) {
+            ch := SubStr(t, j, 1)
+            if RegExMatch(ch, "[A-Za-z]") {
+                firstLatin := j
+                break
+            }
+            j += 1
+        }
+
+        if (firstLatin = 0) {
+            newTokens.Push(t)
+            newSeps.Push(sep)
+            continue
+        }
+
+        ; Extend Latin run.
+        k := firstLatin
+        while (k <= StrLen(t) && RegExMatch(SubStr(t, k, 1), "[A-Za-z]"))
+            k += 1
+
+        hebPrefix := SubStr(t, 1, firstLatin - 1)
+        latinRun := SubStr(t, firstLatin, k - firstLatin)
+        hebSuffix := SubStr(t, k)
+
+        ; Split mixed tokens so contiguous Hebrew tokens can be reversed as a block even when
+        ; the first/last Hebrew token borders Latin characters.
+        ; Cases:
+        ;   1) <HebPrefix><LatinRun><HebSuffix>  => <HebPrefix><LatinRun> + <HebSuffix>
+        ;   2) <LatinRun><HebSuffix>             => <LatinRun> + <HebSuffix>   (e.g. "TOKאםל")
+        ; (We preserve exact whitespace by inserting an empty separator between split parts.)
+        isAllHeb := (s) => (StrLen(s) > 0) && ClipboardContainsHebrew(s) && !RegExMatch(s, "[A-Za-z0-9]")
+
+        if (isAllHeb(hebSuffix) && StrLen(hebSuffix) > 0) {
+            if (StrLen(hebPrefix) = 0) {
+                ; <LatinRun><HebSuffix>
+                newTokens.Push(latinRun)
+                newSeps.Push("")      ; no whitespace between latin and suffix
+                newTokens.Push(hebSuffix)
+                newSeps.Push(sep)     ; original whitespace stays after suffix
+                continue
+            }
+
+            if (isAllHeb(hebPrefix)) {
+                ; <HebPrefix><LatinRun><HebSuffix>
+                newTokens.Push(hebPrefix . latinRun)
+                newSeps.Push("")      ; no whitespace between latin and suffix
+                newTokens.Push(hebSuffix)
+                newSeps.Push(sep)
+                continue
+            }
+        }
+
+        newTokens.Push(t)
+        newSeps.Push(sep)
     }
 
-    ; Apply reversal for remaining tokens
-    if (tokens.Length > 3) {
-        i := 4
-        while (i <= tokens.Length) {
-            tokens[i] := ReverseHebrewRuns(tokens[i])
-            i += 1
+    tokens := newTokens
+    seps := newSeps
+
+    ; 1) Fix each token's internal display:
+    ;    - Hebrew letters reverse within runs
+    ;    - digits keep order ("96" never becomes "69")
+    ;    - Latin letters are anchors inside the token
+    for iTok, t in tokens {
+        keepLeadDigits := (iTok = 1 && RegExMatch(t, "^[0-9]+"))
+        tokens[iTok] := FixTokenRTL(t, keepLeadDigits)
+    }
+
+    ; 2) Reverse contiguous groups of non-Latin tokens, keeping Latin-containing tokens anchored.
+    ;    This implements the rule: English tokens stay in place, but Hebrew-token sequences around
+    ;    them reverse (token order + Hebrew letters inside tokens).
+    HasLatinToken := (t) => RegExMatch(t, "[A-Za-z]")
+
+    iTok := 1
+    while (iTok <= tokens.Length) {
+        if HasLatinToken(tokens[iTok]) {
+            iTok += 1
+            continue
+        }
+
+        start := iTok
+        while (iTok <= tokens.Length && !HasLatinToken(tokens[iTok]))
+            iTok += 1
+        finish := iTok - 1
+
+        ; Reverse the token order in-place, but keep the whitespace separators anchored
+        ; between token slots. (Swapping seps would move the group-end separator into the middle
+        ; and can merge tokens, e.g. in "דגFSD... גגככ גגכגכ".)
+        a := start
+        b := finish
+        while (a < b) {
+            tmpTok := tokens[a]
+            tokens[a] := tokens[b]
+            tokens[b] := tmpTok
+            a += 1
+            b -= 1
         }
     }
 
