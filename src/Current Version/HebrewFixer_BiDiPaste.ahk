@@ -1209,7 +1209,7 @@ FixBidiPastePerLine(text) {
     return out
 }
 
-FixBidiPasteLine(line) {
+FixBidiPasteLine(line, inContainer := false) {
     SetTransformStage("FixBidiPasteLine:start")
 
     ; Determine if the ORIGINAL line contains Latin before we replace containers with
@@ -1234,7 +1234,7 @@ FixBidiPasteLine(line) {
         ; delimiters never "float" via punctuation rules. We only treat them as containers when
         ; properly balanced; otherwise they remain normal punctuation.
         SetTransformStage("FixBidiPasteLine:MixedScriptTokenAlgo")
-        return UnprotectBalancedContainers(FixMixedScriptLine(line))
+        return StripContainerPlaceholders(UnprotectBalancedContainers(FixMixedScriptLine(line, inContainer)))
     }
 
     ; Otherwise (Hebrew-only / no Latin), reverse token order per line while preserving whitespace,
@@ -1268,8 +1268,8 @@ FixBidiPasteLine(line) {
         ; Special rule: if the line starts with digits, keep that leading digit run at the start.
         single := (tokens.Length = 1 ? tokens[1] : core)
         keepLeadDigits := RegExMatch(single, "^[0-9]+")
-        fixed := FixTokenRTL(single, keepLeadDigits, false)
-        return UnprotectBalancedContainers(lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail)
+        fixed := FixTokenRTL(single, keepLeadDigits, false, false)
+        return StripContainerPlaceholders(UnprotectBalancedContainers(lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail))
     }
 
     trailingSep := seps[seps.Length]
@@ -1280,7 +1280,7 @@ FixBidiPasteLine(line) {
         tok := tokens[tokens.Length - A_Index + 1]
         ; If the original line begins with digits, keep that leading digit run anchored in-place.
         keepLeadDigits := (tokens.Length - A_Index + 1 = 1 && RegExMatch(tok, "^[0-9]+"))
-        tok := FixTokenRTL(tok, keepLeadDigits, false)
+        tok := FixTokenRTL(tok, keepLeadDigits, false, false)
         out .= tok
         if (A_Index < tokens.Length) {
             sepIdx := seps.Length - A_Index + 1
@@ -1289,7 +1289,7 @@ FixBidiPasteLine(line) {
     }
     out .= trailingSep
 
-    return UnprotectBalancedContainers(lead . out . trail)
+    return StripContainerPlaceholders(UnprotectBalancedContainers(lead . out . trail))
 }
 
 ReverseStringSimple(s) {
@@ -1302,7 +1302,7 @@ ReverseStringSimple(s) {
     return out
 }
 
-FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false) {
+FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false, keepTrailingPunct := false) {
     ; Fix a single token for RTL display in a non-BiDi renderer.
     ; - Hebrew letters: reverse inside Hebrew runs
     ; - Digits: keep digit run order ("34" stays "34")
@@ -1388,9 +1388,8 @@ FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false) {
 
         ; Some 1-char punctuation (like ':') must remain edge-anchored. Apostrophe is handled separately
         ; and should be allowed to move in Hebrew-only tokens.
-        edgeAnchorChars := ":;,.!?"
-        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && (keepLeadingPunct || StrLen(runs[1].t) >= 2 || (StrLen(runs[1].t) = 1 && InStr(edgeAnchorChars, runs[1].t))))
-        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct" && (StrLen(runs[runs.Length].t) >= 2 || (StrLen(runs[runs.Length].t) = 1 && InStr(edgeAnchorChars, runs[runs.Length].t))))
+                fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && (keepLeadingPunct || StrLen(runs[1].t) >= 2))
+        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct" && (keepTrailingPunct || StrLen(runs[runs.Length].t) >= 2))
 
         rtlIdx := []
         for idx, r in runs {
@@ -1491,7 +1490,7 @@ ReverseHebrewRuns(s) {
     return out
 }
 
-FixMixedScriptLine(line) {
+FixMixedScriptLine(line, inContainer := false) {
     ; Mixed-script token algorithm (for lines containing Latin letters):
     ; - preserve whitespace exactly
     ; - narrow boundary repair for <LatinPrefix><HebrewTail> + <HebrewChar><LatinRun>
@@ -1719,29 +1718,48 @@ FixMixedScriptLine(line) {
     tokens := tmpTokens
     seps := tmpSeps
 
-    ; 1) Fix each token's internal display:
-    ;    - Hebrew letters reverse within runs
-    ;    - digits keep order ("96" never becomes "69")
-    ;    - Latin letters are anchors inside the token
+    ; 1) Detect/strip quotes per-token (so we can redistribute after group reversal)
+    ; and fix each token's internal display.
+    openQuote := []
+    closeQuote := []
+
     for iTok, t in tokens {
+        ; Ensure quote flag arrays are correctly sized (prevents Invalid index errors).
+        openQuote.Push(false)
+        closeQuote.Push(false)
+
         if IsContainerPlaceholderToken(t)
             continue
 
+        if (SubStr(t, 1, 1) = '"') {
+            openQuote[iTok] := true
+            t := SubStr(t, 2)
+        }
+        if (StrLen(t) > 0 && SubStr(t, StrLen(t), 1) = '"') {
+            closeQuote[iTok] := true
+            t := SubStr(t, 1, StrLen(t) - 1)
+        }
+        tokens[iTok] := t
+
         keepLeadDigits := (iTok = 1 && RegExMatch(t, "^[0-9]+"))
 
-        ; If a token starts with punctuation and follows a Latin token (even across whitespace),
-        ; keep that leading punctuation anchored to the start of the token.
         keepLeadPunct := false
-        if (RegExMatch(t, "^\p{P}") && iTok > 1 && HasLatinToken(tokens[iTok-1]))
+        if RegExMatch(t, "^[:;]")
+            keepLeadPunct := true
+        else if (SubStr(t, 1, 1) = "'" && iTok > 1 && TokenHasLatinAnchors(tokens[iTok-1]))
             keepLeadPunct := true
 
-        tokens[iTok] := FixTokenRTL(t, keepLeadDigits, keepLeadPunct)
+        keepTrailPunct := false
+        if (inContainer && RegExMatch(t, "[:;]$") && iTok < tokens.Length && TokenHasLatinAnchors(tokens[iTok+1]))
+            keepTrailPunct := true
+
+        tokens[iTok] := FixTokenRTL(tokens[iTok], keepLeadDigits, keepLeadPunct, keepTrailPunct)
     }
 
     ; 2) Reverse contiguous groups of non-Latin tokens, keeping Latin-containing tokens anchored.
     ;    This implements the rule: English tokens stay in place, but Hebrew-token sequences around
     ;    them reverse (token order + Hebrew letters inside tokens).
-    HasLatinToken := (t) => RegExMatch(t, "[A-Za-z]") || TokenHasLatinContainerPlaceholder(t)
+    HasLatinToken := (t) => TokenHasLatinAnchors(t) || TokenIsPunctOnly(t)
 
     iTok := 1
     while (iTok <= tokens.Length) {
@@ -1774,12 +1792,70 @@ FixMixedScriptLine(line) {
             tmpTok := tokens[a]
             tokens[a] := tokens[b]
             tokens[b] := tmpTok
+
+            ; Keep quote flags in sync with token swaps.
+            tmpOpen := openQuote[a]
+            openQuote[a] := openQuote[b]
+            openQuote[b] := tmpOpen
+
+            tmpClose := closeQuote[a]
+            closeQuote[a] := closeQuote[b]
+            closeQuote[b] := tmpClose
+
             a += 1
             b -= 1
         }
 
         if (grpPrefix != "")
             tokens[start] := grpPrefix . tokens[start]
+    }
+
+    ; Quote redistribution (final):
+    ; For each token that had an opening quote, attach a quote suffix to the RIGHTMOST token
+    ; in that token's Hebrew group.
+    iTok := 1
+    while (iTok <= tokens.Length) {
+        if openQuote[iTok] {
+            start := iTok
+            while (start > 1 && !HasLatinToken(tokens[start-1]))
+                start -= 1
+            finish := iTok
+            while (finish < tokens.Length && !HasLatinToken(tokens[finish+1]))
+                finish += 1
+            tokens[finish] .= '"'
+        }
+        iTok += 1
+    }
+
+    ; For each token that had a closing quote, attach a quote suffix to the token immediately
+    ; LEFT of that token's Hebrew group.
+    iTok := 1
+    while (iTok <= tokens.Length) {
+        if closeQuote[iTok] {
+            start := iTok
+            while (start > 1 && !HasLatinToken(tokens[start-1]))
+                start -= 1
+            attach := start - 1
+            if (attach < 1)
+                attach := 1
+            tokens[attach] .= '"'
+        }
+        iTok += 1
+    }
+
+    for _, idx in [] { 
+        j := idx - 1
+        while (j >= 1) {
+            if HasLatinToken(tokens[j]) {
+                tokens[j] .= '"'
+                break
+            }
+            j -= 1
+        }
+        if (j < 1) {
+            ; Fallback: attach to the first token.
+            tokens[1] .= '"'
+        }
     }
 
     out := ""
@@ -1826,6 +1902,37 @@ TokenHasLatinContainerPlaceholder(tok) {
     return false
 }
 
+TokenHasLatinAnchors(tok) {
+    ; True if token contains any Latin letters or a Latin-container placeholder.
+    return RegExMatch(tok, "[A-Za-z]") || TokenHasLatinContainerPlaceholder(tok)
+}
+
+StripContainerPlaceholders(s) {
+    ; Safety net: if any placeholder/control chars leak, remove them.
+    s := RegExReplace(s, "[\x{E000}-\x{F8FF}]", "")
+    ; Remove BiDi control characters (direction marks / isolates) which can cause invisible mismatches.
+    s := RegExReplace(s, "[\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]", "")
+    ; Normalize NBSP to space
+    s := StrReplace(s, Chr(0x00A0), " ")
+    ; Strip ASCII control chars (safety; prevents invisible mismatches)
+    s := RegExReplace(s, "[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "")
+    return s
+}
+
+TokenIsPunctOnly(tok) {
+    ; True if token consists only of punctuation / symbols (no Hebrew, no digits, no Latin, no placeholders)
+    if (StrLen(tok) = 0)
+        return false
+    i := 1
+    while (i <= StrLen(tok)) {
+        ch := SubStr(tok, i, 1)
+        if IsHebrewChar(ch) || RegExMatch(ch, "[0-9]") || RegExMatch(ch, "[A-Za-z]") || IsContainerPlaceholderToken(ch)
+            return false
+        i += 1
+    }
+    return true
+}
+
 ReverseString(s) {
     chars := StrSplit(s)
     out := ""
@@ -1867,7 +1974,7 @@ ProtectBalancedContainers(line) {
             j := FindBalancedClose(line, i, open, close)
             if (j > 0) {
                 inner := SubStr(line, i + 1, j - i - 1)
-                fixedInner := FixBidiPasteLine(inner)
+                fixedInner := FixBidiPasteLine(inner, true)
                 full := open . fixedInner . close
 
                 n += 1
