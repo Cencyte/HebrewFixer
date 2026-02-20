@@ -1339,11 +1339,16 @@ FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false) {
                 kind2 := "digit"
             else if RegExMatch(ch2, "[A-Za-z]")
                 kind2 := "latin"
+            else if IsContainerPlaceholderToken(ch2)
+                kind2 := "latin"
             if (kind2 != kind)
                 break
             j += 1
         }
 
+        ; Safety: ensure we always make progress (prevents infinite loops on unexpected chars).
+        if (j = i)
+            j += 1
         txt := SubStr(tok, i, j - i)
         runs.Push({k: kind, t: txt})
         i := j
