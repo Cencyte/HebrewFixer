@@ -1462,6 +1462,15 @@ FixMixedScriptLine(line) {
 
     ; Boundary repair: if token[i] is LatinPrefix+HebTail (all Hebrew) and token[i+1] is HebChar+LatinRun,
     ; move the HebChar into token[i] after the LatinPrefix, and leave token[i+1] as LatinRun.
+    ;
+    ; Also handle the mirrored pattern (needed for cases like: "FFFד לללגדדםםםD"):
+    ;   token[i]   = <LatinRun><HebChar>
+    ;   token[i+1] = <HebRun><LatinRun>
+    ; Transform into:
+    ;   token[i]       = <LatinRun>
+    ;   token[i+1]     = <HebRun>            (so it can join the contiguous Hebrew-token block)
+    ;   token[i+2] NEW = <HebChar><LatinRun> (keeps the Latin suffix anchored but associates the Hebrew char)
+    ; And move the whitespace separator between i and i+1 to follow the new token[i+1] (so LatinRun + HebRun become adjacent).
     Loop tokens.Length - 1 {
         iTok := A_Index
         t1 := tokens[iTok]
@@ -1491,6 +1500,43 @@ FixMixedScriptLine(line) {
                         ; This yields e.g. "FFF" + "ד" and "םםםדדגללל" + "D".
                         tokens[iTok] := latinPrefix . heb1
                         tokens[iTok+1] := hebTail . rest
+                    }
+                }
+            }
+        }
+
+        ; Mirrored boundary repair: <LatinRun><HebChar>  +  <HebRun><LatinRun>
+        if RegExMatch(t1, "^([A-Za-z]+)(.)$", &mA) {
+            latinRun := mA[1]
+            hebChar := mA[2]
+            if IsHebrewChar(hebChar) {
+                if RegExMatch(t2, "^(.+?)([A-Za-z]+)$", &mB) {
+                    hebRun := mB[1]
+                    latinSuffix := mB[2]
+
+                    ; Ensure hebRun is all Hebrew.
+                    allHeb2 := true
+                    kk := 1
+                    while (kk <= StrLen(hebRun)) {
+                        if !IsHebrewChar(SubStr(hebRun, kk, 1)) {
+                            allHeb2 := false
+                            break
+                        }
+                        kk += 1
+                    }
+
+                    if allHeb2 {
+                        sepBetween := seps[iTok]        ; whitespace between t1 and t2
+                        sepAfterT2 := seps[iTok+1]      ; whitespace after t2
+
+                        tokens[iTok] := latinRun
+                        seps[iTok] := ""               ; LatinRun becomes adjacent to HebRun
+
+                        tokens[iTok+1] := hebRun
+                        seps[iTok+1] := sepBetween      ; preserve original spacing after the HebRun now
+
+                        tokens.Insert(iTok+2, hebChar . latinSuffix)
+                        seps.Insert(iTok+2, sepAfterT2)
                     }
                 }
             }
