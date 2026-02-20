@@ -1268,7 +1268,9 @@ FixBidiPasteLine(line, inContainer := false) {
         ; Special rule: if the line starts with digits, keep that leading digit run at the start.
         single := (tokens.Length = 1 ? tokens[1] : core)
         keepLeadDigits := RegExMatch(single, "^[0-9]+")
-        fixed := FixTokenRTL(single, keepLeadDigits, false, false)
+        ; If token ends with ':' or ';', keep it trailing when it's the last token.
+keepTrail := RegExMatch(single, "[:;]$")
+fixed := FixTokenRTL(single, keepLeadDigits, false, keepTrail)
         return StripContainerPlaceholders(UnprotectBalancedContainers(lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail))
     }
 
@@ -1280,7 +1282,20 @@ FixBidiPasteLine(line, inContainer := false) {
         tok := tokens[tokens.Length - A_Index + 1]
         ; If the original line begins with digits, keep that leading digit run anchored in-place.
         keepLeadDigits := (tokens.Length - A_Index + 1 = 1 && RegExMatch(tok, "^[0-9]+"))
-        tok := FixTokenRTL(tok, keepLeadDigits, false, false)
+        ; For Hebrew-only multi-token lines, ':'/';' should stay between tokens after reversal.
+; If a token originally ended with ':'/';' and was followed by another Hebrew token, allow it to flip to prefix.
+origIdx := tokens.Length - A_Index + 1
+nextTok := (origIdx < tokens.Length ? tokens[origIdx+1] : "")
+keepTrail := false
+if RegExMatch(tok, "[:;]$") {
+    if (origIdx = tokens.Length)
+        keepTrail := true
+    else if (TokenHasLatinAnchors(nextTok) || IsContainerPlaceholderToken(nextTok))
+        keepTrail := true
+    else
+        keepTrail := false
+}
+tok := FixTokenRTL(tok, keepLeadDigits, false, keepTrail)
         out .= tok
         if (A_Index < tokens.Length) {
             sepIdx := seps.Length - A_Index + 1
@@ -1750,6 +1765,14 @@ FixMixedScriptLine(line, inContainer := false) {
             keepLeadPunct := true
 
         keepTrailPunct := false
+        if RegExMatch(t, "[:;]$") {
+            if (iTok = tokens.Length)
+                keepTrailPunct := true
+            else if (TokenHasLatinAnchors(tokens[iTok+1]) || IsContainerPlaceholderToken(tokens[iTok+1]))
+                keepTrailPunct := true
+            else
+                keepTrailPunct := false
+        }
         if (inContainer && RegExMatch(t, "[:;]$") && iTok < tokens.Length && TokenHasLatinAnchors(tokens[iTok+1]))
             keepTrailPunct := true
 
@@ -1827,17 +1850,20 @@ FixMixedScriptLine(line, inContainer := false) {
         iTok += 1
     }
 
-    ; For each token that had a closing quote, attach a quote suffix to the token immediately
-    ; LEFT of that token's Hebrew group.
+    ; For each token that had a closing quote, attach a quote suffix to the RIGHT edge of the
+    ; quoted Hebrew group. In practice we attach to the token just BEFORE the group's rightmost
+    ; token when possible, so the two quotes land on opposite edges after reversal (matches tests).
     iTok := 1
     while (iTok <= tokens.Length) {
         if closeQuote[iTok] {
             start := iTok
             while (start > 1 && !HasLatinToken(tokens[start-1]))
                 start -= 1
-            attach := start - 1
-            if (attach < 1)
-                attach := 1
+            finish := iTok
+            while (finish < tokens.Length && !HasLatinToken(tokens[finish+1]))
+                finish += 1
+
+            attach := (finish > start ? finish - 1 : finish)
             tokens[attach] .= '"'
         }
         iTok += 1
