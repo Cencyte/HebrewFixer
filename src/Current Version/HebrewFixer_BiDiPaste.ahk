@@ -1211,6 +1211,15 @@ FixBidiPastePerLine(text) {
 
 FixBidiPasteLine(line) {
     SetTransformStage("FixBidiPasteLine:start")
+
+    ; Determine if the ORIGINAL line contains Latin before we replace containers with
+    ; placeholders (placeholders must not affect the branch decision).
+    hasLatin := RegExMatch(line, "[A-Za-z]")
+
+    ; Protect balanced containers in all lines (Hebrew-only and mixed-script)
+    ; so delimiters never move. Unbalanced delimiters remain normal punctuation.
+    line := ProtectBalancedContainers(line)
+
     ; Mixed-script handling:
     ; If the line contains any Latin letters, we DO NOT reverse token order.
     ; Reversing token order in mixed Hebrew+English tends to produce mirrored sentence-level swaps.
@@ -1219,15 +1228,13 @@ FixBidiPasteLine(line) {
     ; If the line contains any Latin letters, treat it as mixed-script and apply the
     ; mixed-script algorithm (Latin anchors). Digits do NOT count as Latin anchors.
     ; Numeric-only tokens should still allow token-order reversal.
-    if RegExMatch(line, "[A-Za-z]") {
-        ; Mixed Latin+Hebrew: do NOT use full token reversal or Windows BiDi.
-        ; Use HebrewFixer mixed-script token algorithm:
-        ; - preserve whitespace
-        ; - reverse Hebrew runs within tokens
-        ; - reverse order of Hebrew tokens only within Hebrew-token runs
-        ; - apply a narrow boundary repair for the common pattern: <Latin><Hebrew> + <Hebrew><Latin>
+    if hasLatin {
+        ; Mixed Latin+Hebrew:
+        ; Before running mixed-script token logic, protect balanced-pair containers so their
+        ; delimiters never "float" via punctuation rules. We only treat them as containers when
+        ; properly balanced; otherwise they remain normal punctuation.
         SetTransformStage("FixBidiPasteLine:MixedScriptTokenAlgo")
-        return FixMixedScriptLine(line)
+        return UnprotectBalancedContainers(FixMixedScriptLine(line))
     }
 
     ; Otherwise (Hebrew-only / no Latin), reverse token order per line while preserving whitespace,
@@ -1262,7 +1269,7 @@ FixBidiPasteLine(line) {
         single := (tokens.Length = 1 ? tokens[1] : core)
         keepLeadDigits := RegExMatch(single, "^[0-9]+")
         fixed := FixTokenRTL(single, keepLeadDigits, false)
-        return lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail
+        return UnprotectBalancedContainers(lead . fixed . (seps.Length ? seps[seps.Length] : "") . trail)
     }
 
     trailingSep := seps[seps.Length]
@@ -1282,7 +1289,7 @@ FixBidiPasteLine(line) {
     }
     out .= trailingSep
 
-    return lead . out . trail
+    return UnprotectBalancedContainers(lead . out . trail)
 }
 
 ReverseStringSimple(s) {
@@ -1318,6 +1325,8 @@ FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false) {
         else if RegExMatch(ch, "[0-9]")
             kind := "digit"
         else if RegExMatch(ch, "[A-Za-z]")
+            kind := "latin"
+        else if IsContainerPlaceholderToken(ch)
             kind := "latin"
 
         j := i
@@ -1372,8 +1381,11 @@ FixTokenRTL(tok, keepLeadingDigits := false, keepLeadingPunct := false) {
         ; Hebrew-only / Hebrew+digits: reorder runs (digits move as a unit but digit order is preserved).
         ; Also supports keeping leading digits anchored (line-start rule).
 
-        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && (keepLeadingPunct || StrLen(runs[1].t) >= 2))
-        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct" && StrLen(runs[runs.Length].t) >= 2)
+        ; Some 1-char punctuation (like ':') must remain edge-anchored. Apostrophe is handled separately
+        ; and should be allowed to move in Hebrew-only tokens.
+        edgeAnchorChars := ":;,.!?"
+        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct" && (keepLeadingPunct || StrLen(runs[1].t) >= 2 || (StrLen(runs[1].t) = 1 && InStr(edgeAnchorChars, runs[1].t))))
+        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct" && (StrLen(runs[runs.Length].t) >= 2 || (StrLen(runs[runs.Length].t) = 1 && InStr(edgeAnchorChars, runs[runs.Length].t))))
 
         rtlIdx := []
         for idx, r in runs {
@@ -1596,7 +1608,7 @@ FixMixedScriptLine(line) {
         j := 1
         while (j <= StrLen(t)) {
             ch := SubStr(t, j, 1)
-            if RegExMatch(ch, "[A-Za-z]") {
+            if (RegExMatch(ch, "[A-Za-z]") || IsContainerPlaceholderToken(ch)) {
                 firstLatin := j
                 break
             }
@@ -1611,7 +1623,7 @@ FixMixedScriptLine(line) {
 
         ; Extend Latin run.
         k := firstLatin
-        while (k <= StrLen(t) && RegExMatch(SubStr(t, k, 1), "[A-Za-z]"))
+        while (k <= StrLen(t) && (RegExMatch(SubStr(t, k, 1), "[A-Za-z]") || IsContainerPlaceholderToken(SubStr(t, k, 1))))
             k += 1
 
         hebPrefix := SubStr(t, 1, firstLatin - 1)
@@ -1662,17 +1674,60 @@ FixMixedScriptLine(line) {
     tokens := newTokens
     seps := newSeps
 
+    ; Split any token containing a container placeholder into separate tokens around the placeholder.
+    ; This handles cases like "קינגסטון:(...)" where the container should be atomic but adjacent
+    ; punctuation (like ':') must remain outside it.
+    tmpTokens := []
+    tmpSeps := []
+    for iTok, t in tokens {
+        sep := (iTok <= seps.Length) ? seps[iTok] : ""
+        didSplit := false
+        j := 1
+        while (j <= StrLen(t)) {
+            ch := SubStr(t, j, 1)
+            if IsContainerPlaceholderToken(ch) {
+                left := SubStr(t, 1, j-1)
+                right := SubStr(t, j+1)
+                if (left != "") {
+                    tmpTokens.Push(left)
+                    tmpSeps.Push("")
+                }
+                tmpTokens.Push(ch)
+                tmpSeps.Push("")
+                if (right != "") {
+                    tmpTokens.Push(right)
+                    tmpSeps.Push(sep)
+                } else {
+                    ; placeholder was at end: keep the original separator after it
+                    tmpSeps[tmpSeps.Length] := sep
+                }
+                didSplit := true
+                break
+            }
+            j += 1
+        }
+        if !didSplit {
+            tmpTokens.Push(t)
+            tmpSeps.Push(sep)
+        }
+    }
+    tokens := tmpTokens
+    seps := tmpSeps
+
     ; 1) Fix each token's internal display:
     ;    - Hebrew letters reverse within runs
     ;    - digits keep order ("96" never becomes "69")
     ;    - Latin letters are anchors inside the token
     for iTok, t in tokens {
+        if IsContainerPlaceholderToken(t)
+            continue
+
         keepLeadDigits := (iTok = 1 && RegExMatch(t, "^[0-9]+"))
 
         ; If a token starts with punctuation and follows a Latin token (even across whitespace),
         ; keep that leading punctuation anchored to the start of the token.
         keepLeadPunct := false
-        if (RegExMatch(t, "^\p{P}") && iTok > 1 && RegExMatch(tokens[iTok-1], "[A-Za-z]"))
+        if (RegExMatch(t, "^\p{P}") && iTok > 1 && HasLatinToken(tokens[iTok-1]))
             keepLeadPunct := true
 
         tokens[iTok] := FixTokenRTL(t, keepLeadDigits, keepLeadPunct)
@@ -1681,7 +1736,7 @@ FixMixedScriptLine(line) {
     ; 2) Reverse contiguous groups of non-Latin tokens, keeping Latin-containing tokens anchored.
     ;    This implements the rule: English tokens stay in place, but Hebrew-token sequences around
     ;    them reverse (token order + Hebrew letters inside tokens).
-    HasLatinToken := (t) => RegExMatch(t, "[A-Za-z]")
+    HasLatinToken := (t) => RegExMatch(t, "[A-Za-z]") || TokenHasLatinContainerPlaceholder(t)
 
     iTok := 1
     while (iTok <= tokens.Length) {
@@ -1739,6 +1794,33 @@ IsHebrewChar(ch) {
     return (code >= 0x0590 && code <= 0x05FF)
 }
 
+IsContainerPlaceholderToken(tok) {
+    if (StrLen(tok) < 1)
+        return false
+    c := Ord(SubStr(tok, 1, 1))
+    return (c >= 0xE000 && c <= 0xF8FF) ; Private Use Area
+}
+
+IsLatinContainerPlaceholderToken(tok) {
+    if (StrLen(tok) < 1)
+        return false
+    c := Ord(SubStr(tok, 1, 1))
+    ; We allocate Latin-containing containers from E000-E7FF
+    return (c >= 0xE000 && c <= 0xE7FF)
+}
+
+TokenHasLatinContainerPlaceholder(tok) {
+    ; True if ANY character in the token is a Latin-container placeholder.
+    i := 1
+    while (i <= StrLen(tok)) {
+        ch := SubStr(tok, i, 1)
+        if IsLatinContainerPlaceholderToken(ch)
+            return true
+        i += 1
+    }
+    return false
+}
+
 ReverseString(s) {
     chars := StrSplit(s)
     out := ""
@@ -1746,6 +1828,91 @@ ReverseString(s) {
         out .= chars[chars.Length - A_Index + 1]
     }
     return out
+}
+
+; =============================================================================
+; Balanced pair containers: (), [], and double-quotes
+; =============================================================================
+
+global HF_CONTAINER_SPACE := Chr(7)   ; legacy placeholder (currently unused)
+
+ProtectBalancedContainers(line) {
+    ; Rewrites balanced containers into placeholder tokens so:
+    ; - delimiters never move (treated as atomic at token-level)
+    ; - inner text is processed recursively
+    ; - placeholders contain no whitespace, so token splitting won't split them
+    global g_BalancedContainerMapStack
+    if !IsSet(g_BalancedContainerMapStack) {
+        g_BalancedContainerMapStack := []
+    }
+
+    containerMap := Map()
+    g_BalancedContainerMapStack.Push(containerMap)
+
+    out := ""
+    i := 1
+    n := 0
+    while (i <= StrLen(line)) {
+        ch := SubStr(line, i, 1)
+
+        if (ch = "(" || ch = "[") {
+            open := ch
+            close := (open = "(" ? ")" : "]")
+
+            j := FindBalancedClose(line, i, open, close)
+            if (j > 0) {
+                inner := SubStr(line, i + 1, j - i - 1)
+                fixedInner := FixBidiPasteLine(inner)
+                full := open . fixedInner . close
+
+                n += 1
+                innerHasLatin := RegExMatch(fixedInner, "[A-Za-z]")
+                base := (innerHasLatin ? 0xE000 : 0xE800)
+                key := Chr(base + n)  ; Private-Use placeholder token (no whitespace)
+                containerMap[key] := full
+                ; also store whether it contains Latin (for debugging, optional)
+
+                out .= key
+
+                i := j + 1
+                continue
+            }
+            ; Unbalanced: treat as normal punctuation
+        }
+
+        out .= ch
+        i += 1
+    }
+    return out
+}
+
+FindBalancedClose(s, openPos, openCh, closeCh) {
+    ; Returns index of matching close delimiter, or 0 if not found/balanced.
+    depth := 0
+    i := openPos
+    while (i <= StrLen(s)) {
+        ch := SubStr(s, i, 1)
+        if (ch = openCh)
+            depth += 1
+        else if (ch = closeCh) {
+            depth -= 1
+            if (depth = 0)
+                return i
+        }
+        i += 1
+    }
+    return 0
+}
+
+UnprotectBalancedContainers(line) {
+    global g_BalancedContainerMapStack
+    if IsSet(g_BalancedContainerMapStack) && g_BalancedContainerMapStack.Length {
+        containerMap := g_BalancedContainerMapStack.Pop()
+        for key, full in containerMap {
+            line := StrReplace(line, key, full)
+        }
+    }
+    return StrReplace(line, HF_CONTAINER_SPACE, " ")  ; HF_CONTAINER_SPACE currently unused
 }
 
 ; =============================================================================
