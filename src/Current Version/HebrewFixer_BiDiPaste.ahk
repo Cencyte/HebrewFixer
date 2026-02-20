@@ -1527,7 +1527,7 @@ FixMixedScriptLine(line) {
 
                     if allHeb2 {
                         sepBetween := seps[iTok]        ; whitespace between t1 and t2
-                        sepAfterT2 := seps[iTok+1]      ; whitespace after t2
+                        sepAfterT2 := (iTok+1 <= seps.Length ? seps[iTok+1] : "")      ; whitespace after t2
 
                         tokens[iTok] := latinRun
                         seps[iTok] := ""               ; LatinRun becomes adjacent to HebRun
@@ -1535,8 +1535,8 @@ FixMixedScriptLine(line) {
                         tokens[iTok+1] := hebRun
                         seps[iTok+1] := sepBetween      ; preserve original spacing after the HebRun now
 
-                        tokens.Insert(iTok+2, hebChar . latinSuffix)
-                        seps.Insert(iTok+2, sepAfterT2)
+                        tokens.InsertAt(iTok+2, hebChar . latinSuffix)
+                        seps.InsertAt(iTok+2, sepAfterT2)
                     }
                 }
             }
