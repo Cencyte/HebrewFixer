@@ -1299,7 +1299,9 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
     ; Fix a single token for RTL display in a non-BiDi renderer.
     ; - Hebrew letters: reverse inside Hebrew runs
     ; - Digits: keep digit run order ("34" stays "34")
-    ; - Punctuation: considered RTL-affecting (moves with Hebrew/digits)
+    ; - Punctuation:
+    ;     * Hebrew-only tokens: reversible runs (and reversed internally), but edge punct stays at edges.
+    ;     * Mixed-script tokens: treated as anchor-like (no run reordering happens when Latin is present).
     ; - Latin letters: treated as LTR anchors (do not reorder across Hebrew)
 
     if (tok = "")
@@ -1358,13 +1360,33 @@ FixTokenRTL(tok, keepLeadingDigits := false) {
 
     if !hasLatin {
         ; Hebrew-only / Hebrew+digits: reorder runs (digits move as a unit but digit order is preserved).
-        ; Special rule: if this token is at the start of the line and begins with digits, keep that
-        ; leading digit run anchored at the beginning (never swap it to the end).
+        ; Punctuation rules (Hebrew-only tokens):
+        ;   - Reverse punctuation runs internally (e.g. "*^^#" -> "#^^*")
+        ;   - Keep leading/trailing punctuation runs anchored at the token edges (do not move them)
+        ; Digit rule:
+        ;   - If this token is at the start of the line and begins with digits, keep that leading digit
+        ;     run anchored at the beginning.
+
+        ; Reverse punctuation runs internally
+        for idx, r in runs {
+            if (r.k = "punct") {
+                r.t := ReverseStringSimple(r.t)
+                runs[idx] := r
+            }
+        }
+
+        fixedLeadPunct := (runs.Length >= 1 && runs[1].k = "punct")
+        fixedTrailPunct := (runs.Length >= 1 && runs[runs.Length].k = "punct")
+
         rtlIdx := []
         for idx, r in runs {
             if (r.k = "latin")
                 continue
             if (keepLeadingDigits && idx = 1 && r.k = "digit")
+                continue
+            if (fixedLeadPunct && idx = 1 && r.k = "punct")
+                continue
+            if (fixedTrailPunct && idx = runs.Length && r.k = "punct")
                 continue
             rtlIdx.Push(idx)
         }
